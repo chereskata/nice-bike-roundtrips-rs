@@ -4,3 +4,9 @@ rust based tool to calculate a GPX file that contains a beautiful trip around yo
 ## Dependencies
 `geo` -> [link](https://crates.io/crates/geo)
 `osmpbfreader-rs`-> [link](https://crates.io/crates/osmpbfreader)
+`smartstring` -> [link](https://crates.io/crates/smartstring)
+
+## How to run
+1. Install Rust runtime, see [here](https://doc.rust-lang.org/book/ch01-01-installation.html)
+2. `git clone https://github.com/chereskata/nice-bike-roundtrips-rs.git`
+3. Compile and run the project with `cd nice-bike-roundtrips-rs; cargo run`
