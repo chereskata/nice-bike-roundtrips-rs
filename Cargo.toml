@@ -9,3 +9,4 @@ edition = "2021"
 h3o = { version = "0.3.1", features = ["geo", "arbitrary", "serde"] }
 geo = "0.24.1"
 osmpbfreader = "0.16.0"
+smartstring = "1.0.1"
