@@ -1,34 +1,41 @@
-use std::u8;
+use std::{u8, collections::HashMap};
 
 pub type NodeId = u64;
 pub type EdgeId = u64;
 /// A graphs node
 pub struct Node {
-    /// Coordinate data storage and for calculation of geometric properties with [geo] crate
+    id: NodeId,
+    /// Coordinate data storage and for calculation of geometric properties 
+    /// with [geo] crate
     point: geo::Point,
     /// OpenStreetMap tags
     tags: osmpbfreader::Tags,
     /// Some OSM Ways can be unidirectional (think one-way streets)
     edges: Vec<EdgeId>,
-    /// Greatness factor from 0 (industrial zone / unrated) till 255 (best surroundings imaginable)
+    /// Greatness factor from 0 (industrial zone / unrated)
+    /// till 255 (best surroundings imaginable)
     /// note: May be outsourced to hexagonal grid in future
     greatness: u8,
 }
 
 impl Node {
-    /// Initialize new Node at location [point] and with the following OpenStreetMap [tags]
+    /// Initialize new Node at location [point] and with the following
+    /// OpenStreetMap [tags]
     pub fn new(
+        id: NodeId,
         point: geo::Point,
         tags: osmpbfreader::Tags
     ) -> Self {
-        Node {
+        Self {
+            id,
             point,
             tags,
             edges: Vec::new(),
             greatness: 0
         }
     }
-    /// Coordinate data storage and for calculation of geometric properties with [geo] crate    
+    /// Coordinate data storage and for calculation of geometric properties
+    /// with [geo] crate    
     pub fn point(&self) -> &geo::Point {
         &self.point
     }
@@ -40,14 +47,16 @@ impl Node {
     pub fn edges(&self) -> &Vec<EdgeId> {
         &self.edges
     }
-    /// Greatness factor from 0 (industrial zone / unrated) till 255 (best surroundings imaginable)
+    /// Greatness factor from 0 (industrial zone / unrated)
+    /// till 255 (best surroundings imaginable)
     /// note: May be outsourced to hexagonal grid in future
     pub fn greatness(&self) -> &u8 {
         &self.greatness
     }
 }
 
-struct Edge {
+pub struct Edge {
+    id: EdgeId,
     /// OpenStreetMap tags
     tags: osmpbfreader::Tags,    
     /// Section length between the Edge's two nodes
@@ -63,13 +72,15 @@ struct Edge {
 impl Edge {
     /// Create new Edge
     pub fn new(
+        id: EdgeId,
         tags: osmpbfreader::Tags,
         distance: f64,
         directed: bool,
         s: NodeId,
         t: NodeId
     ) -> Self {
-        Edge {
+        Self {
+            id,
             tags,
             distance,
             directed,
@@ -97,5 +108,20 @@ impl Edge {
     /// if directed, t is the "to" node s-->t
     pub fn t(&self) -> &NodeId {
         &self.t
+    }
+}
+
+pub struct Graph {
+    nodes: HashMap<NodeId, Node>,
+    edges: HashMap<EdgeId, Edge>
+}
+
+impl Graph {
+    /// Create empty graph
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            edges: HashMap::new()
+        }
     }
 }
