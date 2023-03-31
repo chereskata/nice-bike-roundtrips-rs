@@ -18,7 +18,7 @@ the corresponding ripples literally added (also in a mathematical sense) to the 
 ### key=[highway](https://wiki.openstreetmap.org/wiki/Key:highway) - roads and paths
 * not every road is traversable by bike, especially highways are
 forbidden for non-motor vehicles <br>
-=> do not include `highway=motorway` and `highway=motorway_link` in query <br>
+=> do not include `highway=motorway`, `motorway=junction` and `highway=motorway_link` in query <br>
 &nbsp;&nbsp;&nbsp;&nbsp; do not include `highway` tags with [access](https://wiki.openstreetmap.org/wiki/Tag:bicycle%3Dno) set as `bicycle=no` 
 &nbsp;&nbsp;&nbsp;&nbsp; whole table of access restrictions in Germany [here](https://wiki.openstreetmap.org/wiki/OSM_tags_for_routing/Access_restrictions#Germany)
 * steps are not (easily) passable by bike
@@ -44,10 +44,12 @@ forbidden for non-motor vehicles <br>
 | highway | track | bicycle=no \| <br> (access=private & bicycle!=yes) \| tracktype=grade5 |
 | highway | bridleway | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | cycleway | / |
+| highway | 
 | highway | footway | bicycle=no |
 | highway | pedestrian | bicycle=no |
 
-* special priority for cycleways and bicycle_road=yes
+* every Way with tags `highway=*` and `bicycle_road=yes` (Bike only street) and `cyclestreet=yes` (bike priorized street) 
+* special priority for cycleways and `bicycle_road=yes`
 * additionally exclude all highway=* with [smoothness](https://wiki.openstreetmap.org/wiki/Key:smoothness)=bad,very_bad,horrible,very_horrible,impassable
 * exclude all highway=* with [surface](https://wiki.openstreetmap.org/wiki/Key:surface)=stepping_stones,gravel,rock,pebblestone,mud,sand,woodcips
 * some road elements can also interesting, for example
