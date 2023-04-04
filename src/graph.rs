@@ -124,4 +124,28 @@ impl Graph {
             edges: HashMap::new()
         }
     }
+
+    pub fn add_edge(&self, edge: Edge) -> Result<(), String> {
+        if ! self.nodes.keys().any(|k| edge.s == *k) {
+            return Err(format!(
+                "Adding edge #{} failed, it's node #{} is not in this graph!",
+                edge.id,
+                edge.s
+            ));
+        }
+
+        if ! self.nodes.keys().any(|k| edge.s == *k) {
+            return Err(format!(
+                "Adding edge #{} failed, it's node #{} is not in this graph!",
+                edge.id,
+                edge.s
+            ));
+        }
+
+        todo!();
+    }
+
+    pub fn add_node(&self, node: Node) -> Result<(), String> {
+        todo!()
+    }
 }
