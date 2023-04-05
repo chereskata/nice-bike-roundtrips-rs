@@ -1,47 +1,65 @@
-use std::{fs::File, io::BufReader, process::exit};
+use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
-use osmpbfreader::{OsmPbfReader, OsmObj, osmformat};
+use osmpbfreader::{OsmPbfReader, OsmObj};
+
+use crate::graph::Graph;
+
+// For better readability of the code
+/// Contains the OsmId of the OsmObj, simplified as a primitive
+pub type OsmId = u64;
 
 /// Build up a Graph from the OpenStreetMap data
-pub fn weave(pbf: File) {
+pub fn weave(pbf: File) -> Graph {
     let mut buf = OsmPbfReader::new(BufReader::new(pbf));
+    
     // Parse all OpenStreetMap nodes and ways. Ignore relations
     // note: Relations can yield useful meta knowledge about intersting paths
-    let mut objs: Vec<OsmObj> = buf.iter().filter_map(|r| {
-        // Only real OsmObjects shall remain
-        match r {
-            Ok(obj) => Some(obj),
-            Err(e) => {
-                eprintln!("{:?}", e);
-                None
-            },
-        }
-    }).filter(|obj| ! (matches!(obj, OsmObj::Relation(_)) )).collect();
+    let mut objs: HashMap<OsmId, OsmObj> = buf
+        .iter()
+        .filter_map(|r| {
+            // Only real OsmObjects shall remain
+            match r {
+                Ok(obj) => Some(obj),
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    None
+                },
+            }
+        })
+        .filter(|obj| ! matches!(obj, OsmObj::Relation(_)) )
+        .map(|obj| (obj.id().inner_id() as u64, obj) )
+        .collect();
 
-    let mut bikeable_ways = bikable_ways(&mut objs);
-    // objs.iter().for_each(|obj| print_object(&obj));
+    let mut bikeable_ways: HashMap<OsmId, OsmObj> = bikeable_ways(&mut objs);
+
+    for (_, v) in bikeable_ways {
+        print_object(&v);
+    }
+    
+    let mut graph = Graph::new();
+
+    // nodes have to be in the graph before the edges can be added
+    todo!()
+    
 }
 
 /// Removes all bike routing relevant [OsmObj]s from objs Vector and extracts
 /// them into their own one
-fn bikable_ways(objs: &mut Vec<OsmObj>) -> Vec<OsmObj> {
-    let mut bikable_ways: Vec<OsmObj> = Vec::new();
+fn bikeable_ways(objs: &mut HashMap<OsmId, OsmObj>) -> HashMap<OsmId, OsmObj> {    
+    let mut bikeable_ways: HashMap<OsmId, OsmObj> = HashMap::new();
+    
+    let bikeable_keys: Vec<OsmId> = objs
+        .iter()
+        .filter(|(_, obj)| is_bikeable_way(&obj))
+        .map(|(id, _)| id.clone())
+        .collect();
 
-    // Find all Ways that are bikable (note: it should not contain any nodes)
-    let mut i = 0;
-    while i < objs.len() {
-        let obj: &OsmObj = &objs[i];
-        if is_bikeable_way(&obj) {
-            bikable_ways.push(objs.remove(i));
-        }
-        else {
-            // objs did not shrink from right to left, so the next element
-            // has a higher index
-            i += 1;
-        }
+    for id in bikeable_keys {
+        let entry = objs.remove_entry(&id).unwrap();
+        bikeable_ways.insert(entry.0, entry.1);
     }
     
-    bikable_ways
+    bikeable_ways
 }
 
 /// Tries to determine if an OsmObj is routable in a blacklist fashion
