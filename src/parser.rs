@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
+use std::{fs::File, io::BufReader, process::exit, collections::HashMap, hash::Hash};
 
 use osmpbfreader::{OsmPbfReader, OsmObj};
 
@@ -8,11 +8,35 @@ use crate::graph::Graph;
 /// Contains the OsmId of the OsmObj, simplified as a primitive
 pub type OsmId = u64;
 
-/// Build up a Graph from the OpenStreetMap data
-pub fn weave(mut objs: HashMap<OsmId, OsmObj>) -> Graph {    
-    let mut bikeable_ways: HashMap<OsmId, OsmObj> = bikeable_ways(&mut objs);
+/// Build up a Graph from the routable part of OpenStreetMap data
+pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {    
+    let mut ways: HashMap<OsmId, OsmObj> = bikeable_ways(objs);
+    let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
 
-    // bikeable_ways.iter().for_each(|(_, obj)| print_object(&obj));
+    // the value lets us cheaply tell, if the node is an intersection between
+    // multiple ways, because every way stores it's node ids
+    let mut node_ids: HashMap<OsmId, bool> = HashMap::new();
+
+    // extract node ids of all bikeable ways into a single HashMap
+    for (_, way) in ways.iter() {
+        way.way().unwrap().nodes
+            .iter()
+            .for_each(|id| {
+                let id = id.0 as u64;
+                if node_ids.contains_key(&id) {
+                    // node is an intersection
+                    node_ids.insert(id, true);
+                } else {
+                    node_ids.insert(id, false);
+                }
+            });
+    }
+
+    // extract all nodes related to way sections into its own HashMap
+    for id in node_ids.keys() {
+        let entry = objs.remove_entry(&id).unwrap();
+        nodes.insert(entry.0, entry.1);
+    }
     
     let mut graph = Graph::new();
     
@@ -107,31 +131,6 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
     }
     
     true
-}
-
-/// Removes all nodes from objs and returns them as a HashMap
-pub fn nodes_of_way(
-    id: &OsmId,
-    objs: &mut HashMap<OsmId, OsmObj>
-) -> HashMap<OsmId, OsmObj> {
-    let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
-
-    // Get the native osmpbfreader::Way type
-    let way = objs.get(id).unwrap().way().unwrap();
-
-    // Make the way's node ids independent
-    let node_ids: Vec<OsmId> = way.nodes
-        .iter()
-        .map(|id| id.0 as u64)
-        .collect();
-
-    // Move them
-    for id in node_ids {
-        let entry = objs.remove_entry(&id).unwrap();
-        nodes.insert(entry.0, entry.1);
-    }
-
-    nodes
 }
 
 /// Returns a HashMap of every Node and Way in an pbf file.
@@ -253,39 +252,39 @@ mod tests {
         assert!(! objs.contains_key(&id));
     }
 
-    #[test]
-    fn nodes_of_way() {
-        let mut objs = map_from_pbf(
-            "resources/dortmund_sued.osm.pbf"
-        );
+    // #[test] // Keep this test case because of the work of finding the info ...
+    // fn nodes_of_way() {
+    //     let mut objs = map_from_pbf(
+    //         "resources/dortmund_sued.osm.pbf"
+    //     );
 
-        // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
-        let way_id = 719650577;
-        let node_ids: Vec<u64> = vec!(
-            6755537561,
-            261724396,
-            261724397,
-            675132887,
-            261724399,
-            675133651,
-            675133655,
-            261724400,
-            675133649,
-            261724401,
-            675133653,
-            675133643,
-            675133645,
-            261724402
-        );
+    //     // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
+    //     let way_id = 719650577;
+    //     let node_ids: Vec<u64> = vec!(
+    //         6755537561,
+    //         261724396,
+    //         261724397,
+    //         675132887,
+    //         261724399,
+    //         675133651,
+    //         675133655,
+    //         261724400,
+    //         675133649,
+    //         261724401,
+    //         675133653,
+    //         675133643,
+    //         675133645,
+    //         261724402
+    //     );
 
-        let nodes = super::nodes_of_way(&way_id, &mut objs);
+    //     let nodes = super::nodes_of_way(&way_id, &mut objs);
 
-        // node count should be identical
-        assert_eq!(node_ids.len(), nodes.len());
+    //     // node count should be identical
+    //     assert_eq!(node_ids.len(), nodes.len());
 
-        // note: identical lists have the same size and the same contents
-        for id in node_ids {
-            assert!(nodes.contains_key(&id));
-        }
-    }
+    //     // note: identical lists have the same size and the same contents
+    //     for id in node_ids {
+    //         assert!(nodes.contains_key(&id));
+    //     }
+    // }
 }

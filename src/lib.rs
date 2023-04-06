@@ -13,7 +13,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         // "resources/linnich.osm.pbf"
     );
     
-    parser::weave(objs);
+    parser::weave(&mut objs);
     
     
     Ok(())
