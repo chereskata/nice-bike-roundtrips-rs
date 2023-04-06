@@ -21,7 +21,7 @@ forbidden for non-motor vehicles <br>
 => do not include `highway=motorway` and `highway=motorway_link` in query <br>
 &nbsp;&nbsp;&nbsp;&nbsp; do not include `highway` tags with [access](https://wiki.openstreetmap.org/wiki/Tag:bicycle%3Dno) set as `bicycle=no` 
 &nbsp;&nbsp;&nbsp;&nbsp; whole table of access restrictions in Germany [here](https://wiki.openstreetmap.org/wiki/OSM_tags_for_routing/Access_restrictions#Germany)
-* `highway=trunk` and `highway=trunk_link` are excluded by default, but could have cycleways
+* `highway=trunk` and `highway=trunk_link` are excluded by default, but could have cycleways. Also excluded, because driving near trunk roads is not beautiful at all :D
 * steps are not (easily) passable by bike
 => do not include `highway=steps`
 
@@ -29,23 +29,23 @@ forbidden for non-motor vehicles <br>
 
 | key | value | discard if subtag is present |  
 | --- | ----- | ---------------------------- |
-| highway | primary | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | primary_link | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | secondary | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | secondary_link | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | tertiary | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | tertiary_link | bicycle=no \| <br> (motorroad=yes & cycleway=* not present) |
-| highway | unclassified | bicycle=no \| <br> (access=private & bicycle!=yes) \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | primary | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | primary_link | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | secondary | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | secondary_link | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | tertiary | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | tertiary_link | bicycle=no \| bicycle=use_sidepath \| <br> (motorroad=yes & cycleway=* not present) |
+| highway | unclassified | bicycle=no \| bicycle=use_sidepath \| <br> (access=private & bicycle!=yes) \| <br> (motorroad=yes & cycleway=* not present) |
 | highway | residential | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | living_street | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | service | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | path | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | track | bicycle=no \| <br> (access=private & bicycle!=yes) \| tracktype=grade5 |
-| highway | bridleway | bicycle=no \| <br> (access=private & bicycle!=yes) |
 | highway | cycleway | / |
 | highway | footway | bicycle=no |
 | highway | pedestrian | bicycle=no |
 
+* note: the above table just gives a rough orientation over the needed tags and is not an implementation detail!
 * every Way with tags `highway=*` and `bicycle_road=yes` (Bike only street) and `cyclestreet=yes` (bike priorized street) 
 * special priority for cycleways and `bicycle_road=yes`
 * additionally exclude all `highway=*` with `smoothness=very_bad,horrible,very_horrible,impassable`, [see here](https://wiki.openstreetmap.org/wiki/Key:smoothness)
