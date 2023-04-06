@@ -2,6 +2,7 @@ use std::{u8, collections::HashMap};
 
 pub type NodeId = u64;
 pub type EdgeId = u64;
+
 /// A graphs node
 pub struct Node {
     id: NodeId,
@@ -125,27 +126,20 @@ impl Graph {
         }
     }
 
-    pub fn add_edge(&self, edge: Edge) -> Result<(), String> {
-        if ! self.nodes.keys().any(|k| edge.s == *k) {
-            return Err(format!(
-                "Adding edge #{} failed, it's node #{} is not in this graph!",
-                edge.id,
-                edge.s
-            ));
-        }
-
-        if ! self.nodes.keys().any(|k| edge.s == *k) {
-            return Err(format!(
-                "Adding edge #{} failed, it's node #{} is not in this graph!",
-                edge.id,
-                edge.s
-            ));
-        }
-
-        todo!();
+    pub fn add_edge(&mut self, edge: Edge) {
+        // the edges nodes should be in the graph
+        debug_assert!(self.nodes.keys().any(|id| edge.s == *id));
+        debug_assert!(self.nodes.keys().any(|id| edge.t == *id));
+        
+        self.edges.insert(edge.id, edge);
     }
 
-    pub fn add_node(&self, node: Node) -> Result<(), String> {
-        todo!()
+    /// add a node to the graph
+    /// note: all nodes have to be added before adding edges
+    pub fn add_node(&mut self, node: Node) {
+        // no node should be double in graph
+        debug_assert!(! self.nodes.contains_key(&node.id));
+
+        self.nodes.insert(node.id, node);
     }
 }
