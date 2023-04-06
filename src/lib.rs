@@ -1,13 +1,19 @@
-use std::{error::Error, fs::File};
+use std::{error::Error, fs::File, collections::HashMap};
+
+use osmpbfreader::OsmObj;
+use parser::OsmId;
 
 mod graph;
 mod parser;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let f = File::open("resources/dortmund_sued.osm.pbf")
-        .expect("Could not find .pbf file");
+    // Gather all OpenStreetMap objects into a HashMap for later processing
+    let mut objs: HashMap<OsmId, OsmObj> = parser::map_from_pbf(
+        "resources/dortmund_sued.osm.pbf"
+        // "resources/linnich.osm.pbf"
+    );
     
-    parser::weave(f);
+    parser::weave(objs);
     
     
     Ok(())

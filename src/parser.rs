@@ -9,35 +9,13 @@ use crate::graph::Graph;
 pub type OsmId = u64;
 
 /// Build up a Graph from the OpenStreetMap data
-pub fn weave(pbf: File) -> Graph {
-    let mut buf = OsmPbfReader::new(BufReader::new(pbf));
-    
-    // Parse all OpenStreetMap nodes and ways. Ignore relations
-    // note: Relations can yield useful meta knowledge about intersting paths
-    let mut objs: HashMap<OsmId, OsmObj> = buf
-        .iter()
-        .filter_map(|r| {
-            // Only real OsmObjects shall remain
-            match r {
-                Ok(obj) => Some(obj),
-                Err(e) => {
-                    eprintln!("{:?}", e);
-                    None
-                },
-            }
-        })
-        .filter(|obj| ! matches!(obj, OsmObj::Relation(_)) )
-        .map(|obj| (obj.id().inner_id() as u64, obj) )
-        .collect();
-
+pub fn weave(mut objs: HashMap<OsmId, OsmObj>) -> Graph {    
     let mut bikeable_ways: HashMap<OsmId, OsmObj> = bikeable_ways(&mut objs);
 
-    for (_, v) in bikeable_ways {
-        print_object(&v);
-    }
+    // bikeable_ways.iter().for_each(|(_, obj)| print_object(&obj));
     
     let mut graph = Graph::new();
-
+    
     // nodes have to be in the graph before the edges can be added
     todo!()
     
@@ -47,7 +25,7 @@ pub fn weave(pbf: File) -> Graph {
 /// them into their own one
 fn bikeable_ways(objs: &mut HashMap<OsmId, OsmObj>) -> HashMap<OsmId, OsmObj> {    
     let mut bikeable_ways: HashMap<OsmId, OsmObj> = HashMap::new();
-    
+
     let bikeable_keys: Vec<OsmId> = objs
         .iter()
         .filter(|(_, obj)| is_bikeable_way(&obj))
@@ -80,13 +58,19 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
         let k = tag.0.as_str();
         let v = tag.1.as_str();
 
-        // note: trunks and trunk_links could have cycleway by its side
+        // note: a trunk could have a bicycle lane
+        // note: a primary road should only be choosen, if bicycle= is present
+        // note: a trunk and trunk_link could have cycleway by its side
+        // note: a footway only allowed if bicycle=yes (not checked atm)
+        // note: a pedestrian only allowed if either bicycle=yes or vehicle=yes
+        // note: a track with an undefined tracktype should be treated as worst case (tracktype=grade5)
+        // note: a path without additional info could have a very bad surface
         if k == "highway" {
             match v {
                 "primary" | "primary_link" | "secondary" | "secondary_link" | 
                 "tertiary" | "tertiary_link" | "unclassified" | "residential" |
-                "living_street" | "service" | "path" | "track" | "bridleway" |
-                "cycleway" | "footway" | "pedestrian" => { is_bikeable = true; break; },
+                "living_street" | "service" | "path" | "track" | "cycleway" | 
+                "footway" | "pedestrian" => { is_bikeable = true; break; },
                 _ => return false,
             }
         }
@@ -100,7 +84,12 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
         let v = tag.1.as_str();
 
         if k == "access" && v == "private" { return false; } // note: way could have bicycle=yes
-        if k == "bicycle" && v == "no" { return false; }
+        if k == "bicycle" {
+            match v {
+                "no" | "use_sidepath" => return false,
+                _ => (),
+            }
+        }
         if k == "motorroad" && v == "yes" { return false; } // note: way could have cycleway=*
         if k == "tracktype" && v == "grade5" { return false; }
         if k == "smoothness" {
@@ -119,6 +108,31 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
     }
     
     true
+}
+
+/// Returns a HashMap of every Node and Way in an pbf file.
+/// note: Relations are ignored
+pub fn map_from_pbf(path: &str) -> HashMap<OsmId, OsmObj> {
+    let pbf = File::open(path)
+            .expect("Could not find .pbf file");
+    
+    let mut buf = OsmPbfReader::new(BufReader::new(pbf));
+    let mut objs: HashMap<OsmId, OsmObj> = buf
+            .iter()
+            .filter_map(|r| {
+                // Only real OsmObjects shall remain
+                match r {
+                    Ok(obj) => Some(obj),
+                    Err(e) => {
+                        eprintln!("{:?}", e);
+                        None
+                    },
+                }
+            })
+            .filter(|obj| ! matches!(obj, OsmObj::Relation(_)) )
+            .map(|obj| (obj.id().inner_id() as u64, obj) )
+            .collect();
+    objs
 }
 
 /// Print the OsmObj
@@ -146,5 +160,87 @@ pub fn print_object(obj: &OsmObj) {
             eprintln!("Relation found, exiting ...");
             exit(1);
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    /// Check if bikeable_ways does not loose any OsmObjs while processing
+    fn bikeable_ways_no_lost_objs() {
+        let mut objs = map_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+
+        let objs_count = objs.keys().count();
+
+        // Gather results ...        
+        let bikeable_ways = bikeable_ways(&mut objs);
+
+
+        let non_bikeable_count = objs.keys().count();
+        let bikeable_ways_count = bikeable_ways.keys().count();
+
+        // Both 
+        assert_eq!(objs_count, non_bikeable_count + bikeable_ways_count);
+    }
+            
+    /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
+    #[test]
+    fn bikeable_ways_primary_combinations() {
+        let mut objs = map_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+        let bikeable_ways = bikeable_ways(&mut objs);
+    
+        // "highway=primary" with "bicycle=use_sidepath" is NOT bikeable
+        // url: https://www.openstreetmap.org/way/4290108#map=18/51.49782/7.45615
+        let id = 4290108;
+        assert!(! bikeable_ways.contains_key(&id));
+        assert!(objs.contains_key(&id));
+
+        // "highway=primary_link" with "bicycle=no" is NOT bikeable
+        // url: https://www.openstreetmap.org/way/4071057#map=17/51.49929/7.46939
+        let id = 4071057;
+        assert!(! bikeable_ways.contains_key(&id));
+        assert!(objs.contains_key(&id));
+
+        // "highway=primary_link" with "bicycle=use_sidepath" is NOT bikeable
+        // url: https://www.openstreetmap.org/way/29030994#map=18/51.49687/7.44624
+        let id = 29030994;
+        assert!(! bikeable_ways.contains_key(&id));
+        assert!(objs.contains_key(&id));
+    }
+
+    /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
+    // #[test]
+    // fn bikeable_ways_secondary_combinations() {
+    //     let mut objs = map_from_pbf(
+    //         "resources/dortmund_sued.osm.pbf"
+    //     );
+    //     let bikeable_ways = bikeable_ways(&mut objs);
+    
+    //     // Check if "highway=track" without any restrictions IS bikeable
+    //     // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
+    //     let id = 719650577;
+    //     assert!(bikeable_ways.contains_key(&id));
+    //     assert!(! objs.contains_key(&id));
+    // }
+        
+    /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
+    #[test]
+    fn bikeable_ways_track_combinations() {
+        let mut objs = map_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+        let bikeable_ways = bikeable_ways(&mut objs);
+    
+        // Check if "highway=track" without any restrictions IS bikeable
+        // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
+        let id = 719650577;
+        assert!(bikeable_ways.contains_key(&id));
+        assert!(! objs.contains_key(&id));
     }
 }
