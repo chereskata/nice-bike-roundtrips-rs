@@ -21,18 +21,18 @@ pub fn weave(mut objs: HashMap<OsmId, OsmObj>) -> Graph {
     
 }
 
-/// Removes all bike routing relevant [OsmObj]s from objs Vector and extracts
+/// Removes all bike routing relevant [OsmObj]s from objs HashMap and extracts
 /// them into their own one
 fn bikeable_ways(objs: &mut HashMap<OsmId, OsmObj>) -> HashMap<OsmId, OsmObj> {    
     let mut bikeable_ways: HashMap<OsmId, OsmObj> = HashMap::new();
 
-    let bikeable_keys: Vec<OsmId> = objs
+    let bikeable_ids: Vec<OsmId> = objs
         .iter()
         .filter(|(_, obj)| is_bikeable_way(&obj))
         .map(|(id, _)| id.clone())
         .collect();
 
-    for id in bikeable_keys {
+    for id in bikeable_ids {
         let entry = objs.remove_entry(&id).unwrap();
         bikeable_ways.insert(entry.0, entry.1);
     }
@@ -60,7 +60,6 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
 
         // note: a trunk could have a bicycle lane
         // note: a primary road should only be choosen, if bicycle= is present
-        // note: a trunk and trunk_link could have cycleway by its side
         // note: a footway only allowed if bicycle=yes (not checked atm)
         // note: a pedestrian only allowed if either bicycle=yes or vehicle=yes
         // note: a track with an undefined tracktype should be treated as worst case (tracktype=grade5)
@@ -108,6 +107,31 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
     }
     
     true
+}
+
+/// Removes all nodes from objs and returns them as a HashMap
+pub fn nodes_of_way(
+    id: &OsmId,
+    objs: &mut HashMap<OsmId, OsmObj>
+) -> HashMap<OsmId, OsmObj> {
+    let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
+
+    // Get the native osmpbfreader::Way type
+    let way = objs.get(id).unwrap().way().unwrap();
+
+    // Make the way's node ids independent
+    let node_ids: Vec<OsmId> = way.nodes
+        .iter()
+        .map(|id| id.0 as u64)
+        .collect();
+
+    // Move them
+    for id in node_ids {
+        let entry = objs.remove_entry(&id).unwrap();
+        nodes.insert(entry.0, entry.1);
+    }
+
+    nodes
 }
 
 /// Returns a HashMap of every Node and Way in an pbf file.
@@ -215,21 +239,6 @@ mod tests {
     }
 
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
-    // #[test]
-    // fn bikeable_ways_secondary_combinations() {
-    //     let mut objs = map_from_pbf(
-    //         "resources/dortmund_sued.osm.pbf"
-    //     );
-    //     let bikeable_ways = bikeable_ways(&mut objs);
-    
-    //     // Check if "highway=track" without any restrictions IS bikeable
-    //     // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
-    //     let id = 719650577;
-    //     assert!(bikeable_ways.contains_key(&id));
-    //     assert!(! objs.contains_key(&id));
-    // }
-        
-    /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
     #[test]
     fn bikeable_ways_track_combinations() {
         let mut objs = map_from_pbf(
@@ -237,10 +246,46 @@ mod tests {
         );
         let bikeable_ways = bikeable_ways(&mut objs);
     
-        // Check if "highway=track" without any restrictions IS bikeable
+        // "highway=track" without any restrictions IS bikeable
         // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
         let id = 719650577;
         assert!(bikeable_ways.contains_key(&id));
         assert!(! objs.contains_key(&id));
+    }
+
+    #[test]
+    fn nodes_of_way() {
+        let mut objs = map_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+
+        // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
+        let way_id = 719650577;
+        let node_ids: Vec<u64> = vec!(
+            6755537561,
+            261724396,
+            261724397,
+            675132887,
+            261724399,
+            675133651,
+            675133655,
+            261724400,
+            675133649,
+            261724401,
+            675133653,
+            675133643,
+            675133645,
+            261724402
+        );
+
+        let nodes = super::nodes_of_way(&way_id, &mut objs);
+
+        // node count should be identical
+        assert_eq!(node_ids.len(), nodes.len());
+
+        // note: identical lists have the same size and the same contents
+        for id in node_ids {
+            assert!(nodes.contains_key(&id));
+        }
     }
 }
