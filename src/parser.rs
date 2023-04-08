@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader, process::exit, collections::HashMap, hash::Hash};
+use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
 use osmpbfreader::{OsmPbfReader, OsmObj};
 
@@ -11,38 +11,113 @@ pub type OsmId = u64;
 /// Build up a Graph from the routable part of OpenStreetMap data
 pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {    
     let mut ways: HashMap<OsmId, OsmObj> = bikeable_ways(objs);
-    let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
+    // let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
 
     // the value lets us cheaply tell, if the node is an intersection between
     // multiple ways, because every way stores it's node ids
-    let mut node_ids: HashMap<OsmId, bool> = HashMap::new();
+    let mut nodes: HashMap<OsmId, bool> = HashMap::new();
 
     // extract node ids of all bikeable ways into a single HashMap
     for (_, way) in ways.iter() {
         way.way().unwrap().nodes
             .iter()
             .for_each(|id| {
-                let id = id.0 as u64;
-                if node_ids.contains_key(&id) {
+                let id = id.0.unsigned_abs();
+                if nodes.contains_key(&id) {
                     // node is an intersection
-                    node_ids.insert(id, true);
+                    nodes.insert(id, true);
                 } else {
-                    node_ids.insert(id, false);
+                    nodes.insert(id, false);
                 }
             });
     }
 
     // extract all nodes related to way sections into its own HashMap
-    for id in node_ids.keys() {
-        let entry = objs.remove_entry(&id).unwrap();
-        nodes.insert(entry.0, entry.1);
+    // for id in node_ids.keys() {
+        // let entry = objs.remove_entry(&id).unwrap();
+        // nodes.insert(entry.0, entry.1);
+    // }
+
+
+    // build up graph data
+    use crate::graph::*;
+    let mut graph_nodes: HashMap<NodeId, Node> = HashMap::new();
+    let mut graph_edges: HashMap<EdgeId, Edge> = HashMap::new();
+
+
+    // split way at every intersection
+    for (id, way) in ways.iter() {
+        // collect all nodes from the way, shall be sorted
+        let mut nodes_of_way: Vec<OsmId> = way
+            .way()
+            .unwrap()
+            .nodes
+            .iter()
+            .map(|node_id| node_id.0.unsigned_abs())
+            .collect();
+
+        // check, if the edge is directed
+        let directed = way
+            .tags()
+            .iter()
+            .any(|tag| {
+                if tag.0.as_str() == "oneway" {
+                    match tag.1.as_str() {
+                        "yes" | "1" | "true" => return true,
+                        _ => return false
+                    }
+                }
+                false
+        });
+
+        // note: the HashMaps could be freed of unneeded nodes and edges
+
+        // the start could be dangling till the first intersection
+        let mut i = 0;
+        while i < nodes_of_way.len() {
+            if *nodes.get(&nodes_of_way[i]).unwrap() {
+                break;
+            } else {
+                i += 1;
+            }
+        }
+        // remove the dangeling start
+        for _ in 0..i {
+            nodes_of_way.remove(0);
+            // note: node could be removed from HashMaps here
+        }
+
+        // the end could be dangeling after the last intersection
+        let mut i = nodes_of_way.len() - 1;
+        while i >= 0 {
+            if *nodes.get(&nodes_of_way[i]).unwrap() {
+                break; 
+            } else {
+                i -= 1;
+            }
+        }
+        // remove the dangeling end
+        for _ in i..nodes_of_way.len() - 1 {
+            nodes_of_way.pop();
+            // note: node could be removed from HashMaps here
+        }
+
+        
+        // if a way is unreachable, not one node is a intersection
+        // if a way is a dead end, it has just one intersection node
+        // 
+        // => only one node left: the way has two dead ends and is useless as such
+        // => no node left: the way is not reachable
+        if nodes_of_way.len() < 2 { continue }
+
+        // add the nodes to the to be Graph nodes HashMap        
+
+        // split the way in parts between intersections with other ways        
     }
+
     
-    let mut graph = Graph::new();
     
-    // nodes have to be in the graph before the edges can be added
-    todo!()
-    
+    todo!();    // Graph::new(nodes, edges);
 }
 
 /// Removes all bike routing relevant [OsmObj]s from objs HashMap and extracts
@@ -153,7 +228,7 @@ pub fn map_from_pbf(path: &str) -> HashMap<OsmId, OsmObj> {
                 }
             })
             .filter(|obj| ! matches!(obj, OsmObj::Relation(_)) )
-            .map(|obj| (obj.id().inner_id() as u64, obj) )
+            .map(|obj| (obj.id().inner_id().unsigned_abs(), obj) )
             .collect();
     objs
 }

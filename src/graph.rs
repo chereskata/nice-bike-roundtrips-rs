@@ -56,11 +56,17 @@ impl Node {
     }
 }
 
+/// An edge consists of multiple nodes: Two intersection nodes (s, t) and
+/// zero or more shape defining (middle) nodes.
+///
+/// Every edge starts and ends at an intersection
+/// 
+/// Dead ends shall be an edge with s=t and directed=true 
 pub struct Edge {
     id: EdgeId,
     /// OpenStreetMap tags
     tags: osmpbfreader::Tags,    
-    /// Section length between the Edge's two nodes
+    /// Complete distance from s via all intermediary nodes to t
     distance: f64,
     /// If true, the edge goes from s-->t and not reachable from t-//->s 
     directed: bool,
@@ -68,6 +74,8 @@ pub struct Edge {
     s: NodeId,
     /// if directed, t is the "to" node s-->t
     t: NodeId,
+    /// sorted listing of intermediate nodes s-->i[0]-->i[1]-...->i[n]-->t
+    intermediary: Vec<NodeId>
 }
 
 impl Edge {
@@ -78,7 +86,8 @@ impl Edge {
         distance: f64,
         directed: bool,
         s: NodeId,
-        t: NodeId
+        t: NodeId,
+        intermediary: Vec<NodeId>
     ) -> Self {
         Self {
             id,
@@ -86,7 +95,8 @@ impl Edge {
             distance,
             directed,
             s,
-            t
+            t,
+            intermediary
         }    
     }
     
@@ -110,6 +120,10 @@ impl Edge {
     pub fn t(&self) -> &NodeId {
         &self.t
     }
+    // get the intermediary nodes with no intersections
+    pub fn intermediary(&self) -> &Vec<NodeId> {
+        &self.intermediary
+    }
 }
 
 pub struct Graph {
@@ -119,10 +133,13 @@ pub struct Graph {
 
 impl Graph {
     /// Create empty graph
-    pub fn new() -> Self {
+    pub fn new(
+        nodes: HashMap<NodeId, Node>,
+        edges: HashMap<EdgeId, Edge>
+    ) -> Self {
         Self {
-            nodes: HashMap::new(),
-            edges: HashMap::new()
+            nodes,
+            edges
         }
     }
 
@@ -141,5 +158,13 @@ impl Graph {
         debug_assert!(! self.nodes.contains_key(&node.id));
 
         self.nodes.insert(node.id, node);
+    }
+
+    pub fn nodes(&self) -> &HashMap<NodeId, Node> {
+        &self.nodes
+    }
+
+    pub fn edges(&self) -> &HashMap<NodeId, Edge> {
+        &self.edges
     }
 }

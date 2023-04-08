@@ -1,9 +1,11 @@
-use std::{error::Error, fs::File, collections::HashMap};
+use std::{error::Error, collections::HashMap};
 
 use osmpbfreader::OsmObj;
 use parser::OsmId;
 
+// map data structure
 mod graph;
+// make osm.pbf files useable
 mod parser;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
