@@ -203,11 +203,6 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
     true
 }
 
-/// 
-// fn nodes_of_way() -> Vec<OsmId> {
-    
-// }
-
 /// Returns a container of every Node, Way and Realation in an pbf file.
 pub fn data_from_pbf(path: &str) -> OsmData {
     let pbf = File::open(path)
@@ -332,83 +327,50 @@ mod tests {
     }
 
     
-    // / osmpbfreader::Way::nodes should be sorted from first node to last node
-    // / in one direction, so every nodes neighbours are indeed listed before and
-    // / after the node in Way::nodes
-    // #[test]
-    // fn _way_nodes_ordered() {
-    //     let mut objs = map_from_pbf(
-    //         "resources/dortmund_sued.osm.pbf"
-    //     );
+    /// osmpbfreader::Way::nodes should be sorted from first node to last node
+    /// in one direction, so every nodes neighbours are indeed listed before and
+    /// after the node in Way::nodes
+    #[test]
+    fn _way_nodes_ordered() {
+        let data = data_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
 
-    //     // url: https://www.openstreetmap.org/way/766725632#map=19/51.48087/7.44288
-    //     let way_id = 766725632;
-    //     // first node has i = 0 and last node has i = 14
-    //     // the node ids are sorted from way's start to finish
-    //     let node_ids: Vec<u64> = vec!(
-    //         7160396711,
-    //         9043910398,
-    //         9043910397,
-    //         9043910396,
-    //         10203248997,
-    //         9043910395,
-    //         9043910394,
-    //         3235121529,
-    //         10203248995,
-    //         9043910393,
-    //         9730859168,
-    //         3235121523,
-    //         7128538365,
-    //         7160502714,
-    //         7160396771, 
-    //     );
+        // this way has additionally oneway=yes
+        // url: https://www.openstreetmap.org/way/766725632#map=19/51.48087/7.44288
+        let way_id: WayId = 766725632;
+        // first node has i = 0 and last node has i = 14
+        // the node ids are sorted from way's start to finish
+        let real_node_ids: Vec<NodeId> = vec!(
+            7160396711,
+            9043910398,
+            9043910397,
+            9043910396,
+            10203248997,
+            9043910395,
+            9043910394,
+            3235121529,
+            10203248995,
+            9043910393,
+            9730859168,
+            3235121523,
+            7128538365,
+            7160502714,
+            7160396771, 
+        );
 
+        let found_node_ids: Vec<NodeId> = data.ways.get(&way_id).unwrap().nodes
+            .iter()
+            .map(|node_id| node_id.0.unsigned_abs())
+            .collect();
         
+        // node count should be identical
+        assert_eq!(real_node_ids.len(), found_node_ids.len());
 
+        // the nodes shall be in the same (correct) order as node_ids
+        for i in 0..real_node_ids.len() {
+            assert_eq!(real_node_ids[i], found_node_ids[i]);            
+        }
         
-    //     // node count should be identical
-    //     assert_eq!(node_ids.len(), nodes.len());
-
-    //     // the nodes shall be in the same (correct) order as node_ids
-    //     for i in 0..node_ids.len() {
-        
-    //     }
-        
-    // }    
-    
-    // #[test] // Keep this test case because of the work of finding the info ...
-    // fn nodes_of_way() {
-    //     let mut objs = map_from_pbf(
-    //         "resources/dortmund_sued.osm.pbf"
-    //     );
-
-    //     // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
-    //     let way_id = 719650577;
-    //     let node_ids: Vec<u64> = vec!(
-    //         6755537561,
-    //         261724396,
-    //         261724397,
-    //         675132887,
-    //         261724399,
-    //         675133651,
-    //         675133655,
-    //         261724400,
-    //         675133649,
-    //         261724401,
-    //         675133653,
-    //         675133643,
-    //         675133645,
-    //         261724402
-    //     );
-
-    //     let nodes = super::nodes_of_way(&way_id, &mut objs);
-
-    //     // node count should be identical
-    //     assert_eq!(node_ids.len(), nodes.len());
-
-    //     // note: identical lists have the same size and the same contents
-    //     for id in node_ids {
-    //         assert!(nodes.contains_key(&id));
-    //     }
-    // }
+    }  
 }
