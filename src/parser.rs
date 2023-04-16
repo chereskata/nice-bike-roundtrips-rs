@@ -9,8 +9,8 @@ mod data;
 pub use crate::parser::data::*;
 
 /// Build up a Graph from the routable part of OpenStreetMap data
-pub fn weave(data: &mut OsmData) -> Graph {
-    let mut ways: HashMap<WayId, OsmWay> = bikeable_ways(&mut data.ways);
+pub fn weave(data: &OsmData) -> Graph {
+    let ways: Vec<WayId> = bikeable_ways(&data.ways);
 
     // nodes of the bikeable part of the street network
     // note: the value is an info, if the node is an intersection 
@@ -19,8 +19,8 @@ pub fn weave(data: &mut OsmData) -> Graph {
     // loop trough every way and read out his node ids
     // note: if a node is already registered in a previous iteration, multiple
     // ways cross it and it is an intersection
-    for (_, way) in ways.iter() {
-        way.nodes
+    for way_id in ways.iter() {
+        data.ways.get(&way_id).unwrap().nodes
             .iter()
             .for_each(|node_id| {
                 let node_id = node_id.0.unsigned_abs();
@@ -40,7 +40,9 @@ pub fn weave(data: &mut OsmData) -> Graph {
 
 
     // split way at every intersection
-    for (id, way) in ways.iter() {
+    for way_id in ways.iter() {
+        let way = data.ways.get(&way_id).unwrap();
+        
         // collect all nodes from the way, shall be sorted
         let mut nodes_of_way: Vec<NodeId> = way.nodes
             .iter()
@@ -112,6 +114,21 @@ pub fn weave(data: &mut OsmData) -> Graph {
                     //     edges,
                     //     greatness
                     // ));
+                    
+                    // note: could be extracted earlier from data
+                    let node = data.nodes.get(&node_id).unwrap();
+                    
+                    let point = geo::Point::new(node.lat(), node.lon());
+                    let tags = node.tags.clone();
+
+                    graph_nodes.insert(
+                        *node_id,
+                        Node::new(
+                            *node_id,
+                            point,
+                            tags
+                        )
+                    );
                 }
             });
 
@@ -123,23 +140,15 @@ pub fn weave(data: &mut OsmData) -> Graph {
     todo!();    // Graph::new(nodes, edges);
 }
 
-/// Removes all bike routing relevant [OsmWay]s from ways HashMap and extracts
-/// them into their own one
-fn bikeable_ways(ways: &mut HashMap<WayId, OsmWay>) -> HashMap<WayId, OsmWay> { 
-    let mut bikeable_ways: HashMap<WayId, OsmWay> = HashMap::new();
-
+/// 
+fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> { 
     let bikeable_ids: Vec<WayId> = ways
         .iter()
         .filter(|(_, way)| is_bikeable_way(&way))
         .map(|(id, _)| *id)
         .collect();
-
-    for id in bikeable_ids {
-        let entry = ways.remove_entry(&id).unwrap();
-        bikeable_ways.insert(entry.0, entry.1);
-    }
     
-    bikeable_ways
+    bikeable_ids
 }
 
 /// Tries to determine if an OsmObj is routable in a blacklist fashion
@@ -204,6 +213,8 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
 }
 
 /// Returns a container of every Node, Way and Realation in an pbf file.
+/// note: could be optimized to return just a somewhat useful subset to reduce
+/// memory footprint
 pub fn data_from_pbf(path: &str) -> OsmData {
     let pbf = File::open(path)
             .expect("Could not find .pbf file");
@@ -263,26 +274,6 @@ pub fn print_object(obj: &OsmObj) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    #[test]
-    /// Check if bikeable_ways does not loose any OsmObjs while processing
-    fn bikeable_ways_no_lost_objs() {
-        let mut data = data_from_pbf(
-            "resources/dortmund_sued.osm.pbf"
-        );
-
-        let ways_count = data.ways.keys().count();
-
-        // Gather results ...        
-        let bikeable_ways = bikeable_ways(&mut data.ways);
-
-
-        let non_bikeable_count = data.ways.keys().count();
-        let bikeable_ways_count = bikeable_ways.keys().count();
-
-        // Both 
-        assert_eq!(ways_count, non_bikeable_count + bikeable_ways_count);
-    }
             
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
     #[test]
@@ -290,25 +281,22 @@ mod tests {
         let mut data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
-        let bikeable_ways = bikeable_ways(&mut data.ways);
+        let bikeable_ways = bikeable_ways(&data.ways);
     
         // "highway=primary" with "bicycle=use_sidepath" is NOT bikeable
         // url: https://www.openstreetmap.org/way/4290108#map=18/51.49782/7.45615
         let id = 4290108;
-        assert!(! bikeable_ways.contains_key(&id));
-        assert!(data.ways.contains_key(&id));
-
+        assert!(! bikeable_ways.contains(&id));
+ 
         // "highway=primary_link" with "bicycle=no" is NOT bikeable
         // url: https://www.openstreetmap.org/way/4071057#map=17/51.49929/7.46939
         let id = 4071057;
-        assert!(! bikeable_ways.contains_key(&id));
-        assert!(data.ways.contains_key(&id));
+        assert!(! bikeable_ways.contains(&id));
 
         // "highway=primary_link" with "bicycle=use_sidepath" is NOT bikeable
         // url: https://www.openstreetmap.org/way/29030994#map=18/51.49687/7.44624
         let id = 29030994;
-        assert!(! bikeable_ways.contains_key(&id));
-        assert!(data.ways.contains_key(&id));
+        assert!(! bikeable_ways.contains(&id));
     }
 
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
@@ -322,8 +310,7 @@ mod tests {
         // "highway=track" without any restrictions IS bikeable
         // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
         let id = 719650577;
-        assert!(bikeable_ways.contains_key(&id));
-        assert!(! data.ways.contains_key(&id));
+        assert!(bikeable_ways.contains(&id));
     }
 
     
