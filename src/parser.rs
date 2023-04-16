@@ -1,43 +1,37 @@
 use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
-use osmpbfreader::{OsmPbfReader, OsmObj, Way as OsmWay};
+use osmpbfreader::{OsmPbfReader, OsmObj, Node as OsmNode, Way as OsmWay};
 
 use crate::graph::Graph;
 
-// For better readability of the code
-/// Contains the OsmId of the OsmObj, simplified as a primitive
-pub type OsmId = u64;
+mod data;
+
+pub use crate::parser::data::*;
 
 /// Build up a Graph from the routable part of OpenStreetMap data
-pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {    
-    let mut ways: HashMap<OsmId, OsmObj> = bikeable_ways(objs);
-    // let mut nodes: HashMap<OsmId, OsmObj> = HashMap::new();
+pub fn weave(data: &mut OsmData) -> Graph {
+    let mut ways: HashMap<WayId, OsmWay> = bikeable_ways(&mut data.ways);
 
-    // the value lets us cheaply tell, if the node is an intersection between
-    // multiple ways, because every way stores it's node ids
-    let mut nodes: HashMap<OsmId, bool> = HashMap::new();
+    // nodes of the bikeable part of the street network
+    // note: the value is an info, if the node is an intersection 
+    let mut nodes: HashMap<NodeId, bool> = HashMap::new();
 
-    // extract node ids of all bikeable ways into a single HashMap
+    // loop trough every way and read out his node ids
+    // note: if a node is already registered in a previous iteration, multiple
+    // ways cross it and it is an intersection
     for (_, way) in ways.iter() {
-        way.way().unwrap().nodes
+        way.nodes
             .iter()
-            .for_each(|id| {
-                let id = id.0.unsigned_abs();
-                if nodes.contains_key(&id) {
+            .for_each(|node_id| {
+                let node_id = node_id.0.unsigned_abs();
+                if nodes.contains_key(&node_id) {
                     // node is an intersection
-                    nodes.insert(id, true);
+                    nodes.insert(node_id, true);
                 } else {
-                    nodes.insert(id, false);
+                    nodes.insert(node_id, false);
                 }
             });
     }
-
-    // extract all nodes related to way sections into its own HashMap
-    // for id in node_ids.keys() {
-        // let entry = objs.remove_entry(&id).unwrap();
-        // nodes.insert(entry.0, entry.1);
-    // }
-
 
     // build up graph data
     use crate::graph::*;
@@ -48,17 +42,13 @@ pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {
     // split way at every intersection
     for (id, way) in ways.iter() {
         // collect all nodes from the way, shall be sorted
-        let mut nodes_of_way: Vec<OsmId> = way
-            .way()
-            .unwrap()
-            .nodes
+        let mut nodes_of_way: Vec<NodeId> = way.nodes
             .iter()
             .map(|node_id| node_id.0.unsigned_abs())
             .collect();
 
         // check, if the edge is directed
-        let directed = way
-            .tags()
+        let directed = way.tags
             .iter()
             .any(|tag| {
                 if tag.0.as_str() == "oneway" {
@@ -133,19 +123,19 @@ pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {
     todo!();    // Graph::new(nodes, edges);
 }
 
-/// Removes all bike routing relevant [OsmObj]s from objs HashMap and extracts
+/// Removes all bike routing relevant [OsmWay]s from ways HashMap and extracts
 /// them into their own one
-fn bikeable_ways(objs: &mut HashMap<OsmId, OsmObj>) -> HashMap<OsmId, OsmObj> {    
-    let mut bikeable_ways: HashMap<OsmId, OsmObj> = HashMap::new();
+fn bikeable_ways(ways: &mut HashMap<WayId, OsmWay>) -> HashMap<WayId, OsmWay> { 
+    let mut bikeable_ways: HashMap<WayId, OsmWay> = HashMap::new();
 
-    let bikeable_ids: Vec<OsmId> = objs
+    let bikeable_ids: Vec<WayId> = ways
         .iter()
-        .filter(|(_, obj)| is_bikeable_way(&obj))
-        .map(|(id, _)| id.clone())
+        .filter(|(_, way)| is_bikeable_way(&way))
+        .map(|(id, _)| *id)
         .collect();
 
     for id in bikeable_ids {
-        let entry = objs.remove_entry(&id).unwrap();
+        let entry = ways.remove_entry(&id).unwrap();
         bikeable_ways.insert(entry.0, entry.1);
     }
     
@@ -154,17 +144,9 @@ fn bikeable_ways(objs: &mut HashMap<OsmId, OsmObj>) -> HashMap<OsmId, OsmObj> {
 
 /// Tries to determine if an OsmObj is routable in a blacklist fashion
 /// note: Only Ways are routable, Nodes just give the way coordinates
-fn is_bikeable_way(obj: &OsmObj) -> bool {
-    let way = match obj {
-        OsmObj::Node(_) | OsmObj::Relation(_) => return false,
-        OsmObj::Way(way) => way,
-    };
-
-    // note: Traversing the tags two times does not seem optimal for me
-    // check if the way is a passable highway
-    // if ! way.tags.iter().any(|tag| tag.0.as_str() == "highway") { return false; }
-
+fn is_bikeable_way(way: &OsmWay) -> bool {
     // whitelist legally allowed and passable highways
+    // note: an OsmWay can also be an outline of a building
     let mut is_bikeable = false;
     for tag in way.tags.iter() {
         let k = tag.0.as_str();
@@ -211,7 +193,7 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
         }
         if k == "surface" {
             match v {
-                "stepping_stones" | "gravel" | "rock" => return false,
+                "stepping_stones" | "gravel" | "rock" |
                 "pebblestone" | "mud" | "sand" | "woodclips" => return false,
                 _ => (),
             }
@@ -226,29 +208,33 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
     
 // }
 
-/// Returns a HashMap of every Node and Way in an pbf file.
-/// note: Relations are ignored
-pub fn map_from_pbf(path: &str) -> HashMap<OsmId, OsmObj> {
+/// Returns a container of every Node, Way and Realation in an pbf file.
+pub fn data_from_pbf(path: &str) -> OsmData {
     let pbf = File::open(path)
             .expect("Could not find .pbf file");
     
     let mut buf = OsmPbfReader::new(BufReader::new(pbf));
-    let mut objs: HashMap<OsmId, OsmObj> = buf
-            .iter()
-            .filter_map(|r| {
-                // Only real OsmObjects shall remain
-                match r {
-                    Ok(obj) => Some(obj),
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                        None
+
+    let mut data = OsmData::new();
+    for chunk in buf.iter() {
+        match chunk {
+            Ok(obj) => 
+                match obj {
+                    OsmObj::Node(n) => {
+                        data.nodes.insert(n.id.0.unsigned_abs(), n);
                     },
-                }
-            })
-            .filter(|obj| ! matches!(obj, OsmObj::Relation(_)) )
-            .map(|obj| (obj.id().inner_id().unsigned_abs(), obj) )
-            .collect();
-    objs
+                    OsmObj::Way(w) => {
+                        data.ways.insert(w.id.0.unsigned_abs(), w);
+                    },
+                    OsmObj::Relation(r) => {
+                        data.relations.insert(r.id.0.unsigned_abs(), r);
+                    },
+                },
+            Err(e) => eprintln!("{:?}", e),
+        }
+    }
+
+    data
 }
 
 /// Print the OsmObj
@@ -286,63 +272,63 @@ mod tests {
     #[test]
     /// Check if bikeable_ways does not loose any OsmObjs while processing
     fn bikeable_ways_no_lost_objs() {
-        let mut objs = map_from_pbf(
+        let mut data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
 
-        let objs_count = objs.keys().count();
+        let ways_count = data.ways.keys().count();
 
         // Gather results ...        
-        let bikeable_ways = bikeable_ways(&mut objs);
+        let bikeable_ways = bikeable_ways(&mut data.ways);
 
 
-        let non_bikeable_count = objs.keys().count();
+        let non_bikeable_count = data.ways.keys().count();
         let bikeable_ways_count = bikeable_ways.keys().count();
 
         // Both 
-        assert_eq!(objs_count, non_bikeable_count + bikeable_ways_count);
+        assert_eq!(ways_count, non_bikeable_count + bikeable_ways_count);
     }
             
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
     #[test]
     fn bikeable_ways_primary_combinations() {
-        let mut objs = map_from_pbf(
+        let mut data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
-        let bikeable_ways = bikeable_ways(&mut objs);
+        let bikeable_ways = bikeable_ways(&mut data.ways);
     
         // "highway=primary" with "bicycle=use_sidepath" is NOT bikeable
         // url: https://www.openstreetmap.org/way/4290108#map=18/51.49782/7.45615
         let id = 4290108;
         assert!(! bikeable_ways.contains_key(&id));
-        assert!(objs.contains_key(&id));
+        assert!(data.ways.contains_key(&id));
 
         // "highway=primary_link" with "bicycle=no" is NOT bikeable
         // url: https://www.openstreetmap.org/way/4071057#map=17/51.49929/7.46939
         let id = 4071057;
         assert!(! bikeable_ways.contains_key(&id));
-        assert!(objs.contains_key(&id));
+        assert!(data.ways.contains_key(&id));
 
         // "highway=primary_link" with "bicycle=use_sidepath" is NOT bikeable
         // url: https://www.openstreetmap.org/way/29030994#map=18/51.49687/7.44624
         let id = 29030994;
         assert!(! bikeable_ways.contains_key(&id));
-        assert!(objs.contains_key(&id));
+        assert!(data.ways.contains_key(&id));
     }
 
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
     #[test]
     fn bikeable_ways_track_combinations() {
-        let mut objs = map_from_pbf(
+        let mut data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
-        let bikeable_ways = bikeable_ways(&mut objs);
+        let bikeable_ways = bikeable_ways(&mut data.ways);
     
         // "highway=track" without any restrictions IS bikeable
         // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484
         let id = 719650577;
         assert!(bikeable_ways.contains_key(&id));
-        assert!(! objs.contains_key(&id));
+        assert!(! data.ways.contains_key(&id));
     }
 
     

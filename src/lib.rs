@@ -1,7 +1,6 @@
 use std::{error::Error, collections::HashMap};
 
-use osmpbfreader::OsmObj;
-use parser::OsmId;
+use parser::OsmData;
 
 // map data structure
 mod graph;
@@ -10,12 +9,12 @@ mod parser;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     // Gather all OpenStreetMap objects into a HashMap for later processing
-    let mut objs: HashMap<OsmId, OsmObj> = parser::map_from_pbf(
+    let mut data: OsmData = parser::data_from_pbf(
         "resources/dortmund_sued.osm.pbf"
         // "resources/linnich.osm.pbf"
     );
     
-    parser::weave(&mut objs);
+    parser::weave(&mut data);
     
     
     Ok(())
