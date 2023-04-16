@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
-use osmpbfreader::{OsmPbfReader, OsmObj};
+use osmpbfreader::{OsmPbfReader, OsmObj, Way as OsmWay};
 
 use crate::graph::Graph;
 
@@ -70,7 +70,7 @@ pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {
                 false
         });
 
-        // note: the HashMaps could be freed of unneeded nodes and edges
+        // note: the `nodes` HashMaps could be freed of unneeded nodes and edges
 
         // the start could be dangling till the first intersection
         let mut i = 0;
@@ -110,7 +110,20 @@ pub fn weave(objs: &mut HashMap<OsmId, OsmObj>) -> Graph {
         // => no node left: the way is not reachable
         if nodes_of_way.len() < 2 { continue }
 
-        // add the nodes to the to be Graph nodes HashMap        
+        // add the nodes to the to be Graph nodes HashMap
+        nodes_of_way
+            .iter()
+            .for_each(|node_id| {
+                if ! graph_edges.contains_key(&node_id) {
+                    // graph_nodes.insert(
+                    //     node_id
+                    //     NODE,
+                    //     tags,
+                    //     edges,
+                    //     greatness
+                    // ));
+                }
+            });
 
         // split the way in parts between intersections with other ways        
     }
@@ -207,6 +220,11 @@ fn is_bikeable_way(obj: &OsmObj) -> bool {
     
     true
 }
+
+/// 
+// fn nodes_of_way() -> Vec<OsmId> {
+    
+// }
 
 /// Returns a HashMap of every Node and Way in an pbf file.
 /// note: Relations are ignored
@@ -327,6 +345,51 @@ mod tests {
         assert!(! objs.contains_key(&id));
     }
 
+    
+    // / osmpbfreader::Way::nodes should be sorted from first node to last node
+    // / in one direction, so every nodes neighbours are indeed listed before and
+    // / after the node in Way::nodes
+    // #[test]
+    // fn _way_nodes_ordered() {
+    //     let mut objs = map_from_pbf(
+    //         "resources/dortmund_sued.osm.pbf"
+    //     );
+
+    //     // url: https://www.openstreetmap.org/way/766725632#map=19/51.48087/7.44288
+    //     let way_id = 766725632;
+    //     // first node has i = 0 and last node has i = 14
+    //     // the node ids are sorted from way's start to finish
+    //     let node_ids: Vec<u64> = vec!(
+    //         7160396711,
+    //         9043910398,
+    //         9043910397,
+    //         9043910396,
+    //         10203248997,
+    //         9043910395,
+    //         9043910394,
+    //         3235121529,
+    //         10203248995,
+    //         9043910393,
+    //         9730859168,
+    //         3235121523,
+    //         7128538365,
+    //         7160502714,
+    //         7160396771, 
+    //     );
+
+        
+
+        
+    //     // node count should be identical
+    //     assert_eq!(node_ids.len(), nodes.len());
+
+    //     // the nodes shall be in the same (correct) order as node_ids
+    //     for i in 0..node_ids.len() {
+        
+    //     }
+        
+    // }    
+    
     // #[test] // Keep this test case because of the work of finding the info ...
     // fn nodes_of_way() {
     //     let mut objs = map_from_pbf(
