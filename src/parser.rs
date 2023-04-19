@@ -3,7 +3,7 @@ use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
 use osmpbfreader::{OsmPbfReader, OsmObj, Node as OsmNode, Way as OsmWay};
 
-use crate::graph::Graph;
+use crate::graph::{Graph, NodeId, EdgeId, Node as GraphNode, Edge as GraphEdge};
 
 mod data;
 
@@ -35,56 +35,54 @@ pub fn weave(data: &OsmData) -> Graph {
     }
 
     // build up graph data
-    use crate::graph::*;
-    let mut graph_nodes: HashMap<NodeId, Node> = HashMap::new();
-    let mut graph_edges: HashMap<EdgeId, Edge> = HashMap::new();
+    let mut graph_nodes: HashMap<NodeId, GraphNode> = HashMap::new();
+    let mut graph_edges: HashMap<EdgeId, GraphEdge> = HashMap::new();
 
-
-    // split way at every intersection
     for way_id in ways.iter() {
         let way = data.ways.get(&way_id).unwrap();
-        
-        // collect all nodes from the way, shall be sorted
-        let nodes_of_way: Vec<NodeId> = way.nodes
-            .iter()
-            .map(|node_id| node_id.0.unsigned_abs())
-            .collect();
 
-        // check, if the edge is directed
-        // note: could be extracted into own function
-        let directed = way.tags
-            .iter()
-            .any(|tag| {
-                if tag.0.as_str() == "oneway" {
-                    match tag.1.as_str() {
-                        "yes" | "1" | "true" => return true,
-                        _ => return false
-                    }
+        // split way at every intersection
+        let way_chunks: Vec<Vec<NodeId>>;
+        match chunk_up(&nodes, &way) {
+            Some(wc) => way_chunks = wc,
+            None => continue,
+        }
+
+        use geo::Point;
+        
+        // create Graph way chunks   
+        way_chunks.iter().enumerate().for_each(|(i, chunk)| {
+            let mut distance: f64 = 0.0;
+            let mut points: (Option<&Point>, Option<&Point>) = (None, None);
+            chunk.iter().for_each(|node_id| {
+                let node = data.nodes.get(&node_id).unwrap();
+                // create new GraphNodes
+                if ! graph_nodes.contains_key(&node_id) {
+                    graph_nodes.insert(
+                        *node_id,
+                        GraphNode::new(
+                            *node_id,
+                            point_from(&node)
+                        )
+                    );
                 }
-                false
+
+                match points {
+                    (Some(p1), Some(p2)) => {
+                        distance += geo::VincentyDistance::vincenty_distance(p1, p2).unwrap_or(0.0)
+                    },
+                    _ => (), 
+                }
+                todo!();
+                // points = (points.1, Some(graph_nodes.get(&node_id.clone()).unwrap().point()));
+            });
+
+            // Create Edge from WayChunk
+            // note: shifting could be coded in global variable instead
+            let edge_id = ((i as u64) << 53u64) | way_id; 
+            
         });
         
-        let mut way_chunks: Vec<Vec<NodeId>> = Vec::new();
-
-        let mut chunk: Vec<NodeId> = Vec::new();
-        for node_id in nodes_of_way {
-            chunk.push(node_id.clone());
-            // if node is an intersection
-            if *nodes.get(&node_id).unwrap() {
-                // split the way here
-                way_chunks.push(chunk); // left split contains intersection
-                chunk = Vec::new();
-                chunk.push(node_id); // right split contains intersection
-            }
-        };
-        
-        // if a way is unreachable, not one node is a intersection
-        if way_chunks.len() < 3 { continue; }
-
-        // remove dangeling ends
-        // note: if a way is not directed, the dead ends could be visited to reach something interesting
-        way_chunks.remove(0);
-        way_chunks.pop();
     }
         
     
@@ -164,8 +162,57 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
     true
 }
 
+/// If some way has more than one intersection, its non dead end chunks will be returned
+fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeId>>> {
+    // discover way's nodes, shall be sorted from start to end
+    let nodes_of_way: Vec<NodeId> = way.nodes
+        .iter()
+        .map(|node_id| node_id.0.unsigned_abs())
+        .collect();
+
+    let directed = is_directed(&way);
+
+    let mut way_chunks: Vec<Vec<NodeId>> = Vec::new();
+
+    let mut chunk: Vec<NodeId> = Vec::new();
+    for node_id in nodes_of_way {
+        chunk.push(node_id.clone());
+        // if node is an intersection
+        if *nodes.get(&node_id).unwrap() {
+            // split the way here
+            way_chunks.push(chunk); // left split contains intersection
+            chunk = Vec::new();
+            chunk.push(node_id); // right split contains intersection
+        }
+    };
+
+    // if a way is unreachable, not one node is a intersection
+    if way_chunks.len() < 3 { return None; }
+
+    // remove dangeling ends
+    // note: if a way is not directed, the dead ends could be visited to reach something interesting
+    way_chunks.remove(0);
+    way_chunks.pop();
+
+    Some(way_chunks)
+}
+
 fn is_directed(way: &OsmWay) -> bool {
-    
+    way.tags
+        .iter()
+        .any(|tag| {
+            if tag.0.as_str() == "oneway" {
+                match tag.1.as_str() {
+                    "yes" | "1" | "true" => return true,
+                    _ => return false
+                }
+            }
+            false
+    })
+}
+
+fn point_from(node: &OsmNode) -> geo::Point {
+    geo::Point::new(node.lat(), node.lon())
 }
 
 /// Returns a container of every Node, Way and Realation in an pbf file.
