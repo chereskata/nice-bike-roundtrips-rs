@@ -1,3 +1,4 @@
+use core::panic;
 use std::{fs::File, io::BufReader, process::exit, collections::HashMap};
 
 use osmpbfreader::{OsmPbfReader, OsmObj, Node as OsmNode, Way as OsmWay};
@@ -44,12 +45,13 @@ pub fn weave(data: &OsmData) -> Graph {
         let way = data.ways.get(&way_id).unwrap();
         
         // collect all nodes from the way, shall be sorted
-        let mut nodes_of_way: Vec<NodeId> = way.nodes
+        let nodes_of_way: Vec<NodeId> = way.nodes
             .iter()
             .map(|node_id| node_id.0.unsigned_abs())
             .collect();
 
         // check, if the edge is directed
+        // note: could be extracted into own function
         let directed = way.tags
             .iter()
             .any(|tag| {
@@ -61,86 +63,36 @@ pub fn weave(data: &OsmData) -> Graph {
                 }
                 false
         });
+        
+        let mut way_chunks: Vec<Vec<NodeId>> = Vec::new();
 
-        // note: the `nodes` HashMaps could be freed of unneeded nodes and edges
-
-        // the start could be dangling till the first intersection
-        let mut i = 0;
-        while i < nodes_of_way.len() {
-            if *nodes.get(&nodes_of_way[i]).unwrap() {
-                break;
-            } else {
-                i += 1;
+        let mut chunk: Vec<NodeId> = Vec::new();
+        for node_id in nodes_of_way {
+            chunk.push(node_id.clone());
+            // if node is an intersection
+            if *nodes.get(&node_id).unwrap() {
+                // split the way here
+                way_chunks.push(chunk); // left split contains intersection
+                chunk = Vec::new();
+                chunk.push(node_id); // right split contains intersection
             }
-        }
-        // remove the dangeling start
-        for _ in 0..i {
-            nodes_of_way.remove(0);
-            // note: node could be removed from HashMaps here
-        }
-
-        // the end could be dangeling after the last intersection
-        let mut i = nodes_of_way.len() - 1;
-        while i >= 0 {
-            if *nodes.get(&nodes_of_way[i]).unwrap() {
-                break; 
-            } else {
-                i -= 1;
-            }
-        }
-        // remove the dangeling end
-        for _ in i..nodes_of_way.len() - 1 {
-            nodes_of_way.pop();
-            // note: node could be removed from HashMaps here
-        }
-
+        };
         
         // if a way is unreachable, not one node is a intersection
-        // if a way is a dead end, it has just one intersection node
-        // 
-        // => only one node left: the way has two dead ends and is useless as such
-        // => no node left: the way is not reachable
-        if nodes_of_way.len() < 2 { continue }
+        if way_chunks.len() < 3 { continue; }
 
-        // add the nodes to the to be Graph nodes HashMap
-        nodes_of_way
-            .iter()
-            .for_each(|node_id| {
-                if ! graph_edges.contains_key(&node_id) {
-                    // graph_nodes.insert(
-                    //     node_id
-                    //     NODE,
-                    //     tags,
-                    //     edges,
-                    //     greatness
-                    // ));
-                    
-                    // note: could be extracted earlier from data
-                    let node = data.nodes.get(&node_id).unwrap();
-                    
-                    let point = geo::Point::new(node.lat(), node.lon());
-                    let tags = node.tags.clone();
-
-                    graph_nodes.insert(
-                        *node_id,
-                        Node::new(
-                            *node_id,
-                            point,
-                            tags
-                        )
-                    );
-                }
-            });
-
-        // split the way in parts between intersections with other ways        
+        // remove dangeling ends
+        // note: if a way is not directed, the dead ends could be visited to reach something interesting
+        way_chunks.remove(0);
+        way_chunks.pop();
     }
-
+        
     
     
     todo!();    // Graph::new(nodes, edges);
 }
 
-/// 
+/// Collect all [WayId]s of bikeable OpenStreetMap ways
 fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> { 
     let bikeable_ids: Vec<WayId> = ways
         .iter()
@@ -212,6 +164,10 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
     true
 }
 
+fn is_directed(way: &OsmWay) -> bool {
+    
+}
+
 /// Returns a container of every Node, Way and Realation in an pbf file.
 /// note: could be optimized to return just a somewhat useful subset to reduce
 /// memory footprint
@@ -221,6 +177,16 @@ pub fn data_from_pbf(path: &str) -> OsmData {
     
     let mut buf = OsmPbfReader::new(BufReader::new(pbf));
 
+
+    // 2^11 = 2048 => The highest 11 bits can be used to give each way chunk an
+    // unique id, while retaining the OSM WayId to be used for simple tag lookups
+
+    // note: highest NodeId here: https://textual.ru/64/
+    // note: ways are allowed to have up to 2000 nodes: https://wiki.openstreetmap.org/wiki/Way
+
+    // Highest 11 bits shall be unuse for identifying way chunks in the Graph
+    const MAX_WAY_ID: u64 = u64::pow(2, 53) - 1;
+    
     let mut data = OsmData::new();
     for chunk in buf.iter() {
         match chunk {
@@ -230,7 +196,9 @@ pub fn data_from_pbf(path: &str) -> OsmData {
                         data.nodes.insert(n.id.0.unsigned_abs(), n);
                     },
                     OsmObj::Way(w) => {
-                        data.ways.insert(w.id.0.unsigned_abs(), w);
+                        let way_id = w.id.0.unsigned_abs();
+                        if MAX_WAY_ID < way_id { panic!("WayId {way_id} is higher than 2^53-1"); } 
+                        data.ways.insert(way_id, w);
                     },
                     OsmObj::Relation(r) => {
                         data.relations.insert(r.id.0.unsigned_abs(), r);

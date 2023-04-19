@@ -5,12 +5,11 @@ pub type EdgeId = u64;
 
 /// A graphs node
 pub struct Node {
+    /// Identifies exactly one node, identical to OSM NodeId
     id: NodeId,
     /// Coordinate data storage and for calculation of geometric properties 
     /// with [geo] crate
     point: geo::Point,
-    /// OpenStreetMap tags
-    tags: osmpbfreader::Tags,
     /// Some OSM Ways can be unidirectional (think one-way streets)
     edges: Vec<EdgeId>,
     /// Greatness factor from 0 (industrial zone / unrated)
@@ -25,12 +24,10 @@ impl Node {
     pub fn new(
         id: NodeId,
         point: geo::Point,
-        tags: osmpbfreader::Tags
     ) -> Self {
         Self {
             id,
             point,
-            tags,
             edges: Vec::new(),
             greatness: 0
         }
@@ -42,7 +39,7 @@ impl Node {
     }
     /// OpenStreetMap tags
     pub fn tags(&self) -> &osmpbfreader::Tags {
-        &self.tags
+        todo!();
     }
     /// Some OSM Ways can be unidirectional (think one-way streets)
     pub fn edges(&self) -> &Vec<EdgeId> {
@@ -64,8 +61,6 @@ impl Node {
 /// Dead ends shall be an edge with s=t and directed=true 
 pub struct Edge {
     id: EdgeId,
-    /// OpenStreetMap tags
-    tags: osmpbfreader::Tags,    
     /// Complete distance from s via all intermediary nodes to t
     distance: f64,
     /// If true, the edge goes from s-->t and not reachable from t-//->s 
@@ -80,9 +75,9 @@ pub struct Edge {
 
 impl Edge {
     /// Create new Edge
+    /// note: maybe compute distance while creating edge ???
     pub fn new(
         id: EdgeId,
-        tags: osmpbfreader::Tags,
         distance: f64,
         directed: bool,
         s: NodeId,
@@ -91,7 +86,6 @@ impl Edge {
     ) -> Self {
         Self {
             id,
-            tags,
             distance,
             directed,
             s,
@@ -102,7 +96,7 @@ impl Edge {
     
     /// OpenStreetMap tags
     pub fn tags(&self) -> &osmpbfreader::Tags {
-        &self.tags
+        todo!();
     }
     /// Section length between the Edge's two nodes
     pub fn distance(&self) -> &f64 {
