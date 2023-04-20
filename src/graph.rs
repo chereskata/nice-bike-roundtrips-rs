@@ -65,12 +65,8 @@ pub struct Edge {
     distance: f64,
     /// If true, the edge goes from s-->t and not reachable from t-//->s 
     directed: bool,
-    /// if directed, s is the "from" node s-->t
-    s: NodeId,
-    /// if directed, t is the "to" node s-->t
-    t: NodeId,
-    /// sorted listing of intermediate nodes s-->i[0]-->i[1]-...->i[n]-->t
-    intermediary: Vec<NodeId>
+    /// sorted listing of nodes n.first --> ... --> n.last
+    nodes: Vec<NodeId>
 }
 
 impl Edge {
@@ -80,17 +76,13 @@ impl Edge {
         id: EdgeId,
         distance: f64,
         directed: bool,
-        s: NodeId,
-        t: NodeId,
-        intermediary: Vec<NodeId>
+        nodes: Vec<NodeId>
     ) -> Self {
         Self {
             id,
             distance,
             directed,
-            s,
-            t,
-            intermediary
+            nodes
         }    
     }
     
@@ -108,15 +100,15 @@ impl Edge {
     }
     /// if directed, s is the "from" node s-->t
     pub fn s(&self) -> &NodeId {
-        &self.s
+        &self.nodes.first().unwrap()
     }
     /// if directed, t is the "to" node s-->t
     pub fn t(&self) -> &NodeId {
-        &self.t
+        &self.nodes.last().unwrap()
     }
     // get the intermediary nodes with no intersections
     pub fn intermediary(&self) -> &Vec<NodeId> {
-        &self.intermediary
+        todo!();
     }
 }
 
@@ -136,24 +128,7 @@ impl Graph {
             edges
         }
     }
-
-    pub fn add_edge(&mut self, edge: Edge) {
-        // the edges nodes should be in the graph
-        debug_assert!(self.nodes.keys().any(|id| edge.s == *id));
-        debug_assert!(self.nodes.keys().any(|id| edge.t == *id));
-        
-        self.edges.insert(edge.id, edge);
-    }
-
-    /// add a node to the graph
-    /// note: all nodes have to be added before adding edges
-    pub fn add_node(&mut self, node: Node) {
-        // no node should be double in graph
-        debug_assert!(! self.nodes.contains_key(&node.id));
-
-        self.nodes.insert(node.id, node);
-    }
-
+    
     pub fn nodes(&self) -> &HashMap<NodeId, Node> {
         &self.nodes
     }

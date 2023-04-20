@@ -50,46 +50,56 @@ pub fn weave(data: &OsmData) -> Graph {
 
         use geo::Point;
         
-        // create Graph way chunks   
+        // use node chunks to create an GraphEdge and register its Nodes
         way_chunks.iter().enumerate().for_each(|(i, chunk)| {
             let mut distance: f64 = 0.0;
-            let mut points: (Option<&Point>, Option<&Point>) = (None, None);
-            chunk.iter().for_each(|node_id| {
-                let node = data.nodes.get(&node_id).unwrap();
-                // create new GraphNodes
-                if ! graph_nodes.contains_key(&node_id) {
+            let mut points: (Option<Point>, Option<Point>) = (None, None);
+            for j in 0..chunk.len() - 1 {
+                let node_id = &chunk[j];
+                let node = data.nodes.get(node_id).unwrap();
+                let point: Point = point_from(&node);
+
+                // coordinates of previous point and this point
+                points = (points.1, Some(point));
+
+                // measure_distance
+                match points {
+                    (Some(p1), Some(p2)) => {
+                        distance += geo::VincentyDistance::vincenty_distance(&p1, &p2).unwrap_or(0.0);
+                    },
+                    _ => (),
+                }
+                
+                // create new GraphNode if neccessary
+                if ! graph_nodes.contains_key(node_id) {
                     graph_nodes.insert(
                         *node_id,
                         GraphNode::new(
                             *node_id,
-                            point_from(&node)
+                            point.clone()
                         )
                     );
                 }
-
-                match points {
-                    (Some(p1), Some(p2)) => {
-                        distance += geo::VincentyDistance::vincenty_distance(p1, p2).unwrap_or(0.0)
-                    },
-                    _ => (), 
-                }
-                todo!();
-                // points = (points.1, Some(graph_nodes.get(&node_id.clone()).unwrap().point()));
-            });
-
+            }
+            
             // Create Edge from WayChunk
             // note: shifting could be coded in global variable instead
-            let edge_id = ((i as u64) << 53u64) | way_id; 
-            
-        });
-        
-    }
-        
-    
-    
-    todo!();    // Graph::new(nodes, edges);
-}
+            let edge_id = ((i as u64) << 53u64) | way_id;
 
+            graph_edges.insert(
+                edge_id,
+                GraphEdge::new(
+                    edge_id,
+                    distance,
+                    is_directed(&way),
+                    chunk.clone() // note: cloning is not very nice
+                )
+            );
+        });
+    }
+
+    Graph::new(graph_nodes, graph_edges)
+}
 /// Collect all [WayId]s of bikeable OpenStreetMap ways
 fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> { 
     let bikeable_ids: Vec<WayId> = ways
