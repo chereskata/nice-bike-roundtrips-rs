@@ -110,6 +110,10 @@ impl Edge {
     pub fn intermediary(&self) -> &Vec<NodeId> {
         todo!();
     }
+    // all nodes
+    pub fn nodes(&self) -> &Vec<NodeId> {
+        &self.nodes
+    }
 }
 
 pub struct Graph {

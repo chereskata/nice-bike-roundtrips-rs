@@ -173,6 +173,7 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
 }
 
 /// If some way has more than one intersection, its non dead end chunks will be returned
+/// note: a way could still lead to nowhere, when any intersection finally leads to nowhere
 fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeId>>> {
     // discover way's nodes, shall be sorted from start to end
     let nodes_of_way: Vec<NodeId> = way.nodes
@@ -298,8 +299,10 @@ pub fn print_object(obj: &OsmObj) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::hash_map;
+
     use super::*;
-            
+    
     /// note: see https://github.com/chereskata/nice-bike-roundtrips-rs/blob/master/TAGS.md
     #[test]
     fn bikeable_ways_primary_combinations() {
@@ -337,7 +340,6 @@ mod tests {
         let id = 719650577;
         assert!(bikeable_ways.contains(&id));
     }
-
     
     /// osmpbfreader::Way::nodes should be sorted from first node to last node
     /// in one direction, so every nodes neighbours are indeed listed before and
@@ -384,5 +386,193 @@ mod tests {
             assert_eq!(real_node_ids[i], found_node_ids[i]);            
         }
         
-    }  
+    }
+
+    /// Build a graph from all highways inside "Naturschutzgebiet Bolmke",
+    /// OpenStreetMap id: 964278663
+    #[test]
+    fn weave_bolmke() {
+        // Ways were gathered using Overpass Turbo query:
+        // // [out:json];
+        // // area[name="NSG Bolmke"];
+        // // way["highway"](area);
+        // // (._;>;);
+        // // out;
+
+        // value designates, if a way should be inside the graph
+        // additionally add way #517081281,
+        // url: https://www.openstreetmap.org/way/517081281 to have a more
+        // complex topology
+        let mut all_bolmke_ways: HashMap<WayId,bool> = HashMap::from([
+            (517081281, true),
+            //
+            (24163197, true),
+            (24163200, true),
+            (24205888, true),
+            (24212287, true),
+            (24212293, true),
+            (24212306, true),
+            (24212332, true),
+            (24212416, true),
+            (24212422, true),
+            (24212425, true),
+            (24212440, true),
+            (25112902, true),
+            (25334372, true),
+            (25750397, true),
+            (25750399, true),
+            (25839122, true),
+            (26442301, true),
+            (26762746, true),
+            (26762747, true),
+            (34491573, true),
+            (37179828, true),
+            (37179867, true),
+            (37179869, true),
+            (37179870, true),
+            (38084645, true),
+            (38084646, true),
+            (38084647, true),
+            (38084648, true),
+            (39914724, true),
+            (39947912, true),
+            (53396595, true),
+            (53396597, true),
+            (53396598, true),
+            (53560358, true),
+            (326987556, true),
+            (487599223, true),
+            (492512071, true),
+            (492512072, true),
+            (492512073, true),
+            (492512074, true),
+            (719650577, true),
+            (889518538, true),
+            (910466050, true),
+            (931345543, true),
+            (1025976827, true),
+            (1029482849, true),
+            (1036677995, true),
+            (1044807538, true),
+        ]);
+        
+        // additionally the graph should not contain dead ends, so filter non
+        // circular ways out, to reflect the graph contents
+        
+        // leads to way outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/39914724#map=19/51.49048/7.44303
+        all_bolmke_ways.entry(39914724).and_modify(|in_graph| *in_graph = false);
+        // dead end
+        // url: https://www.openstreetmap.org/way/1025976827
+        all_bolmke_ways.entry(1025976827).and_modify(|in_graph| *in_graph = false);
+        
+
+        // note: only leaf dead ends are filtered from the map. Higher level dead ends are not
+        // leads to way outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/24212287#map=18/51.49012/7.44321
+        // all_bolmke_ways.entry(24212287).and_modify(|in_graph| *in_graph = false);
+        
+        // leads to way outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/53560358
+        all_bolmke_ways.entry(53560358).and_modify(|in_graph| *in_graph = false);
+        // leads to way outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/326987556#map=19/51.48040/7.45259
+        all_bolmke_ways.entry(326987556).and_modify(|in_graph| *in_graph = false);
+        // leads to way outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/37179870
+        all_bolmke_ways.entry(37179870).and_modify(|in_graph| *in_graph = false);
+        // leads to outside of Bolmke NSG
+        // url: https://www.openstreetmap.org/way/889518538
+        all_bolmke_ways.entry(889518538).and_modify(|in_graph| *in_graph = false);
+
+
+
+        // These nodes sould have been cut off, because they belong to dead end ways
+        let mut illegal_nodes: Vec<NodeId> = Vec::new();
+
+        // note: way #24212416 should have its leftmost nodes removed
+        // url: https://www.openstreetmap.org/way/24212416#map=19/51.48468/7.44724
+        illegal_nodes.push(673992475);
+        illegal_nodes.push(673992445);
+
+        // note: way #24212440 should have its downmost nodes removed
+        // url: https://www.openstreetmap.org/way/24212440#map=18/51.47985/7.44770
+        // non legal nodes have ids: 
+        illegal_nodes.push(9669606440);
+        illegal_nodes.push(676631001);
+        illegal_nodes.push(262165276);
+        illegal_nodes.push(262165277);
+        illegal_nodes.push(262165278);
+        illegal_nodes.push(262165279);
+        illegal_nodes.push(676630974);
+        illegal_nodes.push(262165280);
+        illegal_nodes.push(676630938);
+        illegal_nodes.push(262165281);
+        illegal_nodes.push(262165282);
+
+        // note: way #37179867
+        // url: https://www.openstreetmap.org/way/37179867#map=19/51.47736/7.45304
+        illegal_nodes.push(675213222);
+        illegal_nodes.push(675213208);
+        
+        // note: way #25750399
+        // url: https://www.openstreetmap.org/way/25750399
+        // non legal nodes have ids:
+        illegal_nodes.push(280824768);
+        illegal_nodes.push(280824774);
+        illegal_nodes.push(288417434);
+        
+        // note: way #910466050
+        // url: https://www.openstreetmap.org/way/910466050
+        // non legal nodes have ids:
+        illegal_nodes.push(262163628);
+        illegal_nodes.push(262163630);
+        illegal_nodes.push(280824946);
+
+
+        // note: way #24212293
+        // url: https://www.openstreetmap.org/way/24212293
+        // non legal nodes have ids:
+        illegal_nodes.push(675142881);
+
+        // note: way #39947912
+        // url: https://www.openstreetmap.org/way/39947912#map=18/51.48856/7.44968
+        // non legal nodes have ids:
+        illegal_nodes.push(262163418); // only first level leaves (no recursiveness implemented when searching leaves)
+        // illegal_nodes.push(8269731798);
+        // illegal_nodes.push(479732695);
+        // illegal_nodes.push(674954760);
+        // illegal_nodes.push(479732696);
+        // illegal_nodes.push(674954748);
+        // illegal_nodes.push(479732697);
+        // illegal_nodes.push(674954765);
+        // illegal_nodes.push(479732698);
+        // illegal_nodes.push(702312703);
+        // illegal_nodes.push(674956272);
+        
+
+
+        // BEGIN TESTING
+        let mut data = data_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+
+        // remove all ways, except the ones listed above
+        data.ways.retain(|way_id, _| all_bolmke_ways.contains_key(way_id));
+
+        let graph = super::weave(&data);
+
+        // each graph way should originate from one OpenStreetMap way, that could be split
+        for (edge_id, _) in graph.edges() {
+            // edge should be in Bolmke NSG
+            let way_id = (edge_id << 11u64) >> 11u64; // highest 11 bits are the chunk id
+            assert!(all_bolmke_ways.contains_key(&way_id));
+            assert_eq!(all_bolmke_ways.get(&way_id), Some(&true));
+        }
+
+        // each node should not be blacklisted
+        for (node_id, _) in graph.nodes() {
+            assert_eq!(illegal_nodes.contains(node_id), false);
+        }
+    }
 }
