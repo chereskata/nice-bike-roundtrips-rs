@@ -1,4 +1,5 @@
-use std::error::Error;
+use core::panic;
+use std::{error::Error, fs::File, io::{BufReader, Read}};
 
 use graph::Graph;
 use parser::OsmData;
@@ -18,14 +19,28 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     
     let graph: Graph = parser::weave(&mut data);
-
-    
     
     
     Ok(())
 }
 
 /// Runtime configuration
+#[derive(serde::Deserialize)]
 pub struct Config {
-    
+    distance: u8
+}
+
+impl Config {
+    pub fn from(f: File) -> Self {
+        let mut reader = BufReader::new(f);
+        let mut str = String::new();
+        if let Err(e) = reader.read_to_string(&mut str) {
+            panic!("{}", e);
+        }
+        
+        match toml::from_str(&str) {
+            Ok(t) => t,
+            Err(e) => panic!("{}", e),
+        }
+    }
 }

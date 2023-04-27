@@ -11,4 +11,6 @@ geo = "0.24.1"
 osmpbfreader = "0.16.0"
 smartstring = "1.0.1"
 gpx = { version = "0.8.6", features = ["serde"] }
+toml = "0.7.3"
+serde = "1.0.160"
 
