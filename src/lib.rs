@@ -1,11 +1,14 @@
-use std::{error::Error};
+use std::error::Error;
 
+use graph::Graph;
 use parser::OsmData;
 
 // map data structure
 mod graph;
 // make osm.pbf files useable
 mod parser;
+// all routing algorithms are implemented here
+mod router;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     // Gather all OpenStreetMap objects into a HashMap for later processing
@@ -14,7 +17,9 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         // "resources/linnich.osm.pbf"
     );
     
-    parser::weave(&mut data);
+    let graph: Graph = parser::weave(&mut data);
+
+    
     
     
     Ok(())
