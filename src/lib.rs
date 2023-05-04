@@ -1,7 +1,8 @@
 use core::panic;
 use std::{error::Error, fs::File, io::{BufReader, Read}};
 
-use graph::Graph;
+use geo::Point;
+use graph::{Graph, NodeId};
 use parser::OsmData;
 
 // map data structure
@@ -18,8 +19,13 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     
     let graph: Graph = parser::weave(&mut data);
+    let start = router::closest_point(&graph, &Point::new(
+        config.start_lat.clone(),
+        config.start_lon.clone()
+    ));
+    let visit = router::nearest_graph_nodes(&graph, &parser::interesting_points(&data));
     
-    router::unoptimized(&graph, &config);
+    let route: Vec<NodeId> = router::unoptimized(&graph, &visit, &start);
     
     Ok(())
 }
