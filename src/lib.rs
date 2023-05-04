@@ -14,12 +14,12 @@ mod router;
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     // Gather all OpenStreetMap objects into a HashMap for later processing
     let mut data: OsmData = parser::data_from_pbf(
-        "resources/dortmund_sued.osm.pbf"
-        // "resources/linnich.osm.pbf"
+        &config.pbf
     );
     
     let graph: Graph = parser::weave(&mut data);
     
+    router::unoptimized(&graph, &config);
     
     Ok(())
 }
@@ -27,7 +27,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 /// Runtime configuration
 #[derive(serde::Deserialize)]
 pub struct Config {
-    distance: u8
+    distance: u8,
+    start_lat: f64,
+    start_lon: f64,
+    pbf: String,
 }
 
 impl Config {
