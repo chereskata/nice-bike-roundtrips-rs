@@ -9,6 +9,7 @@ rust based tool to calculate a GPX file that contains a beautiful trip around yo
 `gpx` -> [link](https://crates.io/crates/gpx)
 `serde` -> [link](https://crates.io/crates/serde)
 `priority-queue` -> [link](https://crates.io/crates/priority-queue)
+`ordered-float` -> [link](https://crates.io/crates/ordered-float)
 
 ## How to run
 1. Install Rust runtime, see [here](https://doc.rust-lang.org/book/ch01-01-installation.html)
