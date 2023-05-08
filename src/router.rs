@@ -29,7 +29,8 @@ fn dijkstra(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
     todo!();
 }
 
-fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
+// returns empty vector if no path exists between the two nodes
+fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     // key == node, value == predecessor
     let mut came_from: HashMap<NodeId, NodeId> = HashMap::new();
 
@@ -51,7 +52,9 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
     while ! open_set.is_empty() {
         let current = open_set.pop().unwrap();
         let node_id = current.0;
+        println!("current node is {}", node_id);
         if node_id == *end {
+            // collect path from start to end
             let mut path: Vec<NodeId> = Vec::new();
             let mut current: NodeId = current.0;
             path.push(current);
@@ -60,20 +63,26 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
                 path.push(current);
             }
             path.reverse();
-            return path;
+            return Some(path);
         }
         let node = graph.nodes().get(&node_id).unwrap();
+
+        println!("node has {} edges", node.edges().len());
         
         for edge_id in node.edges() {
+            println!("edge id {}", edge_id);
             // find other end of edge
             let edge = graph.edges().get(&edge_id).unwrap();
-            let mut neighbour_node_id = None;
+            let neighbour_node_id: NodeId;
             if *edge.s() == node_id {
-                neighbour_node_id = Some(*edge.t());
+                neighbour_node_id = *edge.t();
+            } else if *edge.directed() {
+                // this edge is directed, and [node] is at its end (node_id == t)
+                // neigbour_node is not directly reachable from [node]
+                continue;
             } else {
-                neighbour_node_id = Some(*edge.s());
+                neighbour_node_id = *edge.s();
             }
-            let neighbour_node_id = neighbour_node_id.unwrap();
             
             let tentative_g_score = g_score.get(&node_id).unwrap() + edge.distance();
 
@@ -94,8 +103,7 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
         }
         
     }
-
-    panic!("Unreachable code");
+    None
 }
 
 /// Closest point by euclidean distance
@@ -117,4 +125,101 @@ pub fn nearest_graph_nodes(graph: &Graph, points: &Vec<Point>) -> Vec<NodeId> {
         .map(|p| closest_point(&graph, &p))
         .collect();
     ids
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{*, Node as GraphNode, Edge as GraphEdge};
+
+    #[test]
+    fn a_star_no_path() {
+        // start: {1, 2}
+        // end: 0
+        //
+        // 0--->1<-->2
+
+        const DISTANCE: f64 = 1.0;
+        let mut graph_nodes: HashMap<NodeId, GraphNode> = HashMap::new();
+        graph_nodes.insert(0, GraphNode::new(0, Point::new(0.0, 0.0)));
+        graph_nodes.insert(1, GraphNode::new(1, Point::new(1.0, 0.0)));
+        graph_nodes.insert(2, GraphNode::new(2, Point::new(2.0, 0.0)));
+
+        let mut graph_edges: HashMap<EdgeId, GraphEdge> = HashMap::new();
+        graph_edges.insert(0, GraphEdge::new(0, DISTANCE, true, vec![0, 1]));
+        graph_nodes.get_mut(&0).unwrap().insert_edge(0);
+        graph_nodes.get_mut(&1).unwrap().insert_edge(0);
+        graph_edges.insert(1, GraphEdge::new(1, DISTANCE, false, vec![1, 2]));
+        graph_nodes.get_mut(&1).unwrap().insert_edge(1);
+        graph_nodes.get_mut(&2).unwrap().insert_edge(1);
+
+        let graph = Graph::new(graph_nodes, graph_edges);
+
+        let result = a_star(&graph, &0, &1);
+        assert_eq!(None, result);
+
+        let result = a_star(&graph, &2, &0);
+        assert_eq!(None, result);
+    }
+
+    #[test]
+    fn a_star_simple_path() {
+        // start: 0
+        // end: 6
+        //
+        // 0--->1<-->2--->3<-->8
+        // |    |         |
+        // |    |         |
+        // 4<---5<---6<-->7
+
+        let mut graph_nodes: HashMap<NodeId, GraphNode> = HashMap::new();
+        graph_nodes.insert(0, GraphNode::new(0, Point::new(0.0, 1.0)));
+        graph_nodes.insert(1, GraphNode::new(1, Point::new(1.0, 1.0)));
+        graph_nodes.insert(2, GraphNode::new(2, Point::new(2.0, 1.0)));
+        graph_nodes.insert(3, GraphNode::new(3, Point::new(3.0, 1.0)));
+        graph_nodes.insert(8, GraphNode::new(8, Point::new(4.0, 1.0)));
+        graph_nodes.insert(4, GraphNode::new(4, Point::new(0.0, 0.0)));
+        graph_nodes.insert(5, GraphNode::new(5, Point::new(0.0, 1.0)));
+        graph_nodes.insert(6, GraphNode::new(6, Point::new(0.0, 2.0)));
+        graph_nodes.insert(7, GraphNode::new(7, Point::new(0.0, 3.0)));
+
+        let mut graph_edges: HashMap<EdgeId, GraphEdge> = HashMap::new();
+        graph_edges.insert(0, GraphEdge::new(0, 1.0, true, vec![0, 1]));
+        graph_nodes.get_mut(&0).unwrap().insert_edge(0);
+        graph_nodes.get_mut(&1).unwrap().insert_edge(0);
+        graph_edges.insert(1, GraphEdge::new(1, 1.0, false, vec![1, 2]));
+        graph_nodes.get_mut(&1).unwrap().insert_edge(1);
+        graph_nodes.get_mut(&2).unwrap().insert_edge(1);
+        graph_edges.insert(2, GraphEdge::new(2, 1.0, true, vec![2, 3]));
+        graph_nodes.get_mut(&2).unwrap().insert_edge(2);
+        graph_nodes.get_mut(&3).unwrap().insert_edge(2);
+        graph_edges.insert(3, GraphEdge::new(3, 1.0, false, vec![3, 8]));
+        graph_nodes.get_mut(&3).unwrap().insert_edge(3);
+        graph_nodes.get_mut(&8).unwrap().insert_edge(3);
+        graph_edges.insert(4, GraphEdge::new(4, 1.0, false, vec![0, 4]));
+        graph_nodes.get_mut(&0).unwrap().insert_edge(4);
+        graph_nodes.get_mut(&4).unwrap().insert_edge(4);
+        graph_edges.insert(5, GraphEdge::new(5, 1.0, false, vec![1, 5]));
+        graph_nodes.get_mut(&1).unwrap().insert_edge(1);
+        graph_nodes.get_mut(&5).unwrap().insert_edge(5);
+        graph_edges.insert(6, GraphEdge::new(6, 1.0, false, vec![7, 3])); // logical s, t are reversed
+        graph_nodes.get_mut(&7).unwrap().insert_edge(6);
+        graph_nodes.get_mut(&3).unwrap().insert_edge(6);
+        graph_edges.insert(7, GraphEdge::new(7, 1.0, true, vec![5, 4]));
+        graph_nodes.get_mut(&5).unwrap().insert_edge(7);
+        graph_nodes.get_mut(&4).unwrap().insert_edge(7);
+        graph_edges.insert(8, GraphEdge::new(8, 1.0, true, vec![6, 5]));
+        graph_nodes.get_mut(&6).unwrap().insert_edge(8);
+        graph_nodes.get_mut(&5).unwrap().insert_edge(8);
+        graph_edges.insert(9, GraphEdge::new(9, 1.0, false, vec![6, 7]));
+        graph_nodes.get_mut(&6).unwrap().insert_edge(9);
+        graph_nodes.get_mut(&7).unwrap().insert_edge(9);
+
+        let graph = Graph::new(graph_nodes, graph_edges);
+        
+        let result = a_star(&graph, &0, &6).unwrap();
+        let should_be = vec![0, 1, 2, 3, 7, 6];
+
+        assert_eq!(should_be, result);
+    }
 }

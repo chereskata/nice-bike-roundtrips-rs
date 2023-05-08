@@ -45,6 +45,10 @@ impl Node {
     pub fn edges(&self) -> &Vec<EdgeId> {
         &self.edges
     }
+    pub fn insert_edge(&mut self, id: EdgeId) {
+        // note: could check, if edge is already registered
+        self.edges.push(id);
+    }
     /// Greatness factor from 0 (industrial zone / unrated)
     /// till 255 (best surroundings imaginable)
     /// note: May be outsourced to hexagonal grid in future
@@ -65,7 +69,7 @@ pub struct Edge {
     distance: f64,
     /// If true, the edge goes from s-->t and not reachable from t-//->s 
     directed: bool,
-    /// sorted listing of nodes n.first --> ... --> n.last
+    /// sorted listing of nodes n.first = s --> ... --> n.last = t
     nodes: Vec<NodeId>
 }
 

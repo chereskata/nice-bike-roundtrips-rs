@@ -47,6 +47,9 @@ pub fn weave(data: &OsmData) -> Graph {
         
         // use node chunks to create an GraphEdge and register its Nodes
         way_chunks.iter().enumerate().for_each(|(i, chunk)| {
+            // note: shifting could be coded in global variable instead
+            let edge_id = ((i as u64) << 53u64) | way_id;
+
             let mut distance: f64 = 0.0;
             let mut points: (Option<Point>, Option<Point>) = (None, None);
             for j in 0..chunk.len() - 1 {
@@ -75,12 +78,11 @@ pub fn weave(data: &OsmData) -> Graph {
                         )
                     );
                 }
+                // register this way chunk in GraphNode
+                graph_nodes.get_mut(&node_id).unwrap().insert_edge(edge_id);
             }
             
             // Create Edge from WayChunk
-            // note: shifting could be coded in global variable instead
-            let edge_id = ((i as u64) << 53u64) | way_id;
-
             graph_edges.insert(
                 edge_id,
                 GraphEdge::new(
@@ -311,6 +313,50 @@ mod tests {
         
     }
 
+    #[test]
+    fn graph_node_knows_ways() {
+        let data = data_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+
+        let node_id: NodeId = 675097538;
+        let ways: Vec<WayId> = vec![            
+            53383789,
+            954422690,
+            687683118
+        ];
+        
+        let graph = super::weave(&data);
+        let node = graph.nodes().get(&node_id).unwrap();
+
+        // Extract only OsmWayId part of EdgeId
+        let result: Vec<WayId> = node
+            .edges()
+            .iter()
+            .map(|edge_id| (*edge_id << 11u64) >> 11u64)
+            .collect();
+
+        println!("ways {:?}", ways);
+        println!("resutl {:?}", result);
+        
+        assert_eq!(ways.len(), result.len());
+        for way_id in ways {
+            assert!(result.contains(&way_id));
+        }
+    }
+
+    /// currently the graph does not contain some nodes and ways
+    #[test]
+    fn graph_no_lost_ways() {
+        let data = data_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+    
+        let graph = super::weave(&data);
+        assert!(graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
+        assert!(graph.nodes().keys().into_iter().any(|node_id| *node_id == 280824608));
+    }
+    
     /// Build a graph from all highways inside "Naturschutzgebiet Bolmke",
     /// OpenStreetMap id: 964278663
     #[test]
