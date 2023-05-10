@@ -35,7 +35,7 @@ pub fn weave(data: &OsmData) -> Graph {
 
     for way_id in ways.iter() {
         let way = data.ways.get(&way_id).unwrap();
-
+      
         // split way at every intersection
         let way_chunks: Vec<Vec<NodeId>>;
         match chunk_up(&nodes, &way) {
@@ -178,8 +178,6 @@ fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeI
         .map(|node_id| node_id.0.unsigned_abs())
         .collect();
 
-    let directed = is_directed(&way);
-
     let mut way_chunks: Vec<Vec<NodeId>> = Vec::new();
 
     let mut chunk: Vec<NodeId> = Vec::new();
@@ -193,6 +191,7 @@ fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeI
             chunk.push(node_id); // right split contains intersection
         }
     };
+    way_chunks.push(chunk); // last chunk can never be pushed inside the loop
 
     // if a way is unreachable, not one node is a intersection
     if way_chunks.len() < 3 { return None; }
