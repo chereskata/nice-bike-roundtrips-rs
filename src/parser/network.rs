@@ -35,14 +35,14 @@ pub fn weave(data: &OsmData) -> Graph {
 
     for way_id in ways.iter() {
         let way = data.ways.get(&way_id).unwrap();
-      
+        
         // split way at every intersection
         let way_chunks: Vec<Vec<NodeId>>;
         match chunk_up(&nodes, &way) {
             Some(wc) => way_chunks = wc,
             None => continue,
         }
-
+        
         use geo::Point;
         
         // use node chunks to create an GraphEdge and register its Nodes
@@ -52,15 +52,15 @@ pub fn weave(data: &OsmData) -> Graph {
 
             let mut distance: f64 = 0.0;
             let mut points: (Option<Point>, Option<Point>) = (None, None);
-            for j in 0..chunk.len() - 1 {
-                let node_id = &chunk[j];
-                let node = data.nodes.get(node_id).unwrap();
+            for j in 0..chunk.len() { // chunk.len() not included in enumeration
+                let node_id = chunk[j];
+                let node = data.nodes.get(&node_id).unwrap();
                 let point: Point = point_from(&node);
 
-                // coordinates of previous point and this point
+                // coordinates of previous point and current point
                 points = (points.1, Some(point));
 
-                // measure_distance
+                // measure distance
                 match points {
                     (Some(p1), Some(p2)) => {
                         distance += geo::VincentyDistance::vincenty_distance(&p1, &p2).unwrap_or(0.0);
@@ -69,15 +69,16 @@ pub fn weave(data: &OsmData) -> Graph {
                 }
                 
                 // create new GraphNode if neccessary
-                if ! graph_nodes.contains_key(node_id) {
+                if ! graph_nodes.contains_key(&node_id) {
                     graph_nodes.insert(
-                        *node_id,
+                        node_id,
                         GraphNode::new(
-                            *node_id,
+                            node_id,
                             point.clone()
                         )
                     );
                 }
+               
                 // register this way chunk in GraphNode
                 graph_nodes.get_mut(&node_id).unwrap().insert_edge(edge_id);
             }
@@ -182,7 +183,7 @@ fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeI
 
     let mut chunk: Vec<NodeId> = Vec::new();
     for node_id in nodes_of_way {
-        chunk.push(node_id.clone());
+        chunk.push(node_id);
         // if node is an intersection
         if *nodes.get(&node_id).unwrap() {
             // split the way here
@@ -192,15 +193,14 @@ fn chunk_up(nodes: &HashMap<NodeId, bool>, way: &OsmWay) -> Option<Vec<Vec<NodeI
         }
     };
     way_chunks.push(chunk); // last chunk can never be pushed inside the loop
-
-    // if a way is unreachable, not one node is a intersection
-    if way_chunks.len() < 3 { return None; }
+    
 
     // remove dangeling ends
     // note: if a way is not directed, the dead ends could be visited to reach something interesting
-    way_chunks.remove(0);
-    way_chunks.pop();
-
+    way_chunks.remove(0); // till the first intersection
+    way_chunks.pop(); // from the last intersection to the end
+    
+    if way_chunks.len() < 1 { return None; } // either not connected or both directions are dead ends
     Some(way_chunks)
 }
 
@@ -311,37 +311,45 @@ mod tests {
         }
         
     }
-
+    
     #[test]
     fn graph_node_knows_ways() {
         let data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
 
-        let node_id: NodeId = 675097538;
-        let ways: Vec<WayId> = vec![            
-            53383789,
-            954422690,
-            687683118
+        let node_id: NodeId = 271456407;
+        let ways_should_be: Vec<WayId> = vec![       
+            910466050,
+            37179867
+        ];
+        let edges_should_be: Vec<EdgeId> = vec![
+            9007200165207042,
+            910466050,
+            54043195565625819
         ];
         
         let graph = super::weave(&data);
         let node = graph.nodes().get(&node_id).unwrap();
 
-        // Extract only OsmWayId part of EdgeId
-        let result: Vec<WayId> = node
-            .edges()
+        let edges_result: Vec<EdgeId> = node.edges().clone();
+        let mut ways_result: Vec<WayId> = edges_result.clone()
             .iter()
             .map(|edge_id| (*edge_id << 11u64) >> 11u64)
             .collect();
-
-        println!("ways {:?}", ways);
-        println!("resutl {:?}", result);
+        // split ways still have the same way id
+        ways_result.dedup();
         
-        assert_eq!(ways.len(), result.len());
-        for way_id in ways {
-            assert!(result.contains(&way_id));
+        assert_eq!(ways_should_be.len(), ways_result.len());
+        for way_id in ways_should_be {
+            assert!(ways_result.contains(&way_id));
         }
+
+        assert_eq!(edges_should_be.len(), edges_result.len());
+        for edge_id in edges_should_be {
+            assert!(edges_result.contains(&edge_id));
+        }
+
     }
 
     /// currently the graph does not contain some nodes and ways
@@ -352,8 +360,15 @@ mod tests {
         );
     
         let graph = super::weave(&data);
-        assert!(graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
-        assert!(graph.nodes().keys().into_iter().any(|node_id| *node_id == 280824608));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 203970758));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 910466050));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 37179867));        
+        assert_eq!(true, graph.nodes().keys().into_iter().any(|node_id| *node_id == 280824608));
+
+        // this way is a dead end, because one end of it are steps, so unpassable by bike
+        assert_eq!(false, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 52060549))
     }
     
     /// Build a graph from all highways inside "Naturschutzgebiet Bolmke",
