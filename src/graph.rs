@@ -11,6 +11,8 @@ pub struct Node {
     /// with [geo] crate
     point: geo::Point,
     /// Some OSM Ways can be unidirectional (think one-way streets)
+    /// note: contains every edge, that is directly connected to self
+    /// middle nodes should have only one edge
     edges: Vec<EdgeId>,
     /// Greatness factor from 0 (industrial zone / unrated)
     /// till 255 (best surroundings imaginable)

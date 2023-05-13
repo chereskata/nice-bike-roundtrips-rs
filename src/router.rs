@@ -14,22 +14,10 @@ pub fn unoptimized(graph: &Graph, visit: &Vec<NodeId>, start: &NodeId) -> Vec<No
     todo!()
 }
 
+/// returns empty vector if no path exists between the two nodes
+/// note: is it really useful to return nodes? - the edges contain all location
+/// data, that has to be reconstructed later on
 
-fn dijkstra(graph: &Graph, start: &NodeId, end: &NodeId) -> Vec<NodeId> {
-    pub type Distance = f64;  
-    
-    let mut routing_table: HashMap<NodeId, Distance> = HashMap::new();
-    routing_table.insert(*start, 0_f64);
-
-    let mut route: Vec<NodeId> = vec![*start];
-    while ! routing_table.keys().any(|dest| *dest == *end) {
-        
-    }
-
-    todo!();
-}
-
-// returns empty vector if no path exists between the two nodes
 fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     // key == node, value == predecessor
     let mut came_from: HashMap<NodeId, NodeId> = HashMap::new();
@@ -52,7 +40,6 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     while ! open_set.is_empty() {
         let current = open_set.pop().unwrap();
         let node_id = current.0;
-        println!("current node is {}", node_id);
         if node_id == *end {
             // collect path from start to end
             let mut path: Vec<NodeId> = Vec::new();
@@ -66,11 +53,8 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
             return Some(path);
         }
         let node = graph.nodes().get(&node_id).unwrap();
-
-        println!("node has {} edges", node.edges().len());
         
         for edge_id in node.edges() {
-            println!("edge id {}", edge_id);
             // find other end of edge
             let edge = graph.edges().get(&edge_id).unwrap();
             let neighbour_node_id: NodeId;
@@ -83,8 +67,8 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
             } else {
                 neighbour_node_id = *edge.s();
             }
-            
-            let tentative_g_score = g_score.get(&node_id).unwrap() + edge.distance();
+
+            let tentative_g_score: f64 = g_score.get(&node_id).unwrap() + edge.distance();
 
             if tentative_g_score < *g_score.get(&neighbour_node_id).unwrap_or(&f64::MAX) {
                 came_from.insert(neighbour_node_id, node_id);
@@ -97,8 +81,7 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
                 
                 let f = tentative_g_score + h; 
                 f_score.insert(neighbour_node_id, f);
-
-                open_set.change_priority(&neighbour_node_id, Reverse(NotNan::new(f).unwrap()));
+                open_set.push(neighbour_node_id, Reverse(NotNan::new(f).unwrap()));
             }
         }
         
@@ -155,7 +138,7 @@ mod tests {
 
         let graph = Graph::new(graph_nodes, graph_edges);
 
-        let result = a_star(&graph, &0, &1);
+        let result = a_star(&graph, &1, &0);
         assert_eq!(None, result);
 
         let result = a_star(&graph, &2, &0);
@@ -179,9 +162,9 @@ mod tests {
         graph_nodes.insert(3, GraphNode::new(3, Point::new(3.0, 1.0)));
         graph_nodes.insert(8, GraphNode::new(8, Point::new(4.0, 1.0)));
         graph_nodes.insert(4, GraphNode::new(4, Point::new(0.0, 0.0)));
-        graph_nodes.insert(5, GraphNode::new(5, Point::new(0.0, 1.0)));
-        graph_nodes.insert(6, GraphNode::new(6, Point::new(0.0, 2.0)));
-        graph_nodes.insert(7, GraphNode::new(7, Point::new(0.0, 3.0)));
+        graph_nodes.insert(5, GraphNode::new(5, Point::new(1.0, 0.0)));
+        graph_nodes.insert(6, GraphNode::new(6, Point::new(2.0, 0.0)));
+        graph_nodes.insert(7, GraphNode::new(7, Point::new(3.0, 0.0)));
 
         let mut graph_edges: HashMap<EdgeId, GraphEdge> = HashMap::new();
         graph_edges.insert(0, GraphEdge::new(0, 1.0, true, vec![0, 1]));
