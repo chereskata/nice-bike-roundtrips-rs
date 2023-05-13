@@ -222,6 +222,10 @@ fn point_from(node: &OsmNode) -> geo::Point {
     geo::Point::new(node.lat(), node.lon())
 }
 
+pub fn to_way_id(edge_id: &EdgeId) -> WayId {    
+    (*edge_id << 11u64) >> 11u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +315,23 @@ mod tests {
         }
         
     }
+
+    #[test]
+    fn middle_node_only_one_edge() {
+        let data = data_from_pbf(
+            "resources/dortmund_sued.osm.pbf"
+        );
+
+        let graph = super::weave(&data);
+
+        let node_id: NodeId = 280824622;
+        let way_id: WayId = 810524645;
+
+        let result = graph.nodes().get(&node_id).unwrap().edges();
+        assert_eq!(1, result.len());
+        let edge_id: EdgeId = *result.get(0).unwrap();
+        assert_eq!(way_id, super::to_way_id(&edge_id));
+    }
     
     #[test]
     fn graph_node_knows_ways() {
@@ -335,7 +356,7 @@ mod tests {
         let edges_result: Vec<EdgeId> = node.edges().clone();
         let mut ways_result: Vec<WayId> = edges_result.clone()
             .iter()
-            .map(|edge_id| (*edge_id << 11u64) >> 11u64)
+            .map(|edge_id| super::to_way_id(&edge_id))
             .collect();
         // split ways still have the same way id
         ways_result.dedup();
@@ -360,15 +381,15 @@ mod tests {
         );
     
         let graph = super::weave(&data);
-        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
-        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 25750400));
-        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 203970758));
-        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 910466050));
-        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 37179867));        
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 25750400));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 25750400));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 203970758));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 910466050));
+        assert_eq!(true, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 37179867));        
         assert_eq!(true, graph.nodes().keys().into_iter().any(|node_id| *node_id == 280824608));
 
         // this way is a dead end, because one end of it are steps, so unpassable by bike
-        assert_eq!(false, graph.edges().keys().into_iter().any(|edge_id| ((*edge_id << 11u64) >> 11u64) == 52060549))
+        assert_eq!(false, graph.edges().keys().into_iter().any(|edge_id| super::to_way_id(&edge_id) == 52060549))
     }
     
     /// Build a graph from all highways inside "Naturschutzgebiet Bolmke",
@@ -548,7 +569,7 @@ mod tests {
         // each graph way should originate from one OpenStreetMap way, that could be split
         for (edge_id, _) in graph.edges() {
             // edge should be in Bolmke NSG
-            let way_id = (edge_id << 11u64) >> 11u64; // highest 11 bits are the chunk id
+            let way_id = super::to_way_id(&edge_id);
             assert!(all_bolmke_ways.contains_key(&way_id));
             assert_eq!(all_bolmke_ways.get(&way_id), Some(&true));
         }
