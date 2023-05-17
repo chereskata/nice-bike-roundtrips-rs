@@ -8,10 +8,68 @@ use priority_queue::PriorityQueue;
 
 use crate::graph::{Graph, NodeId};
 
-pub fn unoptimized(graph: &Graph, visit: &Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
+/// note: contains only starts and ends of ways
+pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
+    // note: start could be a node in the middle of a way, breaks assumption that
+    // only way's s and t are included here, but a_star will handle this
+    // by defaulting into one direction
+    let mut visit = order_like_convex_hull(graph, start, visit);
+    // end node is start node, so push it too
+    visit.push(*start);
     
-    
-    todo!()
+    let mut route: Vec<NodeId> = Vec::new();
+    route.push(*start);
+
+    // note: at the moment in between nodes of a way are not contained here
+    while ! visit.is_empty() {
+        let from = route.last().unwrap();
+        let to = visit.remove(0);
+        
+        let mut part = a_star(graph, from, &to).unwrap_or(Vec::new());
+        route.append(&mut part);
+    }
+
+    route
+}
+
+/// reorders visit nodes by reordering the nodes, so the final path will look
+/// similar to a convex hull
+/// first element has to be visited before second element and so on ...
+fn order_like_convex_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<NodeId>) -> Vec<NodeId> {
+    // for every node, starting with start: push to new vec and search nearest node from visit vector. 
+    // note: distance looks a lot like heuristics of A*
+
+    let mut ordered: Vec<NodeId> = Vec::new();
+
+    // temporarily add start node
+    ordered.push(*start);
+
+    // note: this could be speed up by sorting the visit nodes by some heurisic of direction
+    while ! visit.is_empty() {
+        let from = ordered.last().unwrap();
+
+        struct Candidate {
+            pub node_id: Option<NodeId>,
+            pub distance: f64,
+            pub index: Option<usize>,
+        }
+
+        let mut candidate = Candidate { node_id: None, distance: f64::MAX, index: None };
+        for i in 0..visit.len() {
+            let to = visit.get(i).unwrap();
+            let current_distance = heuristic_distance(graph, &from, &to);
+            if candidate.distance > current_distance {
+                candidate.node_id = Some(*to);
+                candidate.distance = current_distance;
+                candidate.index = Some(i);
+            }
+        }
+        ordered.push(visit.remove(candidate.index.unwrap()));
+    }
+
+    // remove start from ordered nodes
+    ordered.remove(0);
+    ordered
 }
 
 /// returns empty vector if no path exists between the two nodes
@@ -27,10 +85,8 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     g_score.insert(*start, 0_f64);
 
     // heuristic of distance from start via=key to end
-    let h = Point::euclidean_distance(
-        graph.nodes().get(start).unwrap().point(),
-        graph.nodes().get(end).unwrap().point()
-    );
+    let h = heuristic_distance(graph, start, end);
+    
     let mut f_score: HashMap<NodeId, f64> = HashMap::new();
     f_score.insert(*start, h);
 
@@ -74,10 +130,7 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
                 came_from.insert(neighbour_node_id, node_id);
                 g_score.insert(neighbour_node_id, tentative_g_score);
                 
-                let h = Point::euclidean_distance(
-                    graph.nodes().get(&neighbour_node_id).unwrap().point(),
-                    graph.nodes().get(end).unwrap().point()
-                );
+                let h = heuristic_distance(graph, &neighbour_node_id, end);
                 
                 let f = tentative_g_score + h; 
                 f_score.insert(neighbour_node_id, f);
@@ -89,17 +142,30 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     None
 }
 
+fn heuristic_distance(graph: &Graph, from: &NodeId, to: &NodeId) -> f64 {
+    Point::euclidean_distance(
+        graph.nodes().get(from).unwrap().point(),
+        graph.nodes().get(to).unwrap().point()
+    )
+}
+
 /// Closest point by euclidean distance
 pub fn closest_point(graph: &Graph, p: &Point) -> NodeId {
-    // maybe use harvesine distance instead of euclidean
-    let distance: f64 = f64::MAX;
-    let mut nearest = None;
+    struct Candidate {
+        node_id: Option<NodeId>,
+        distance: f64
+    }
+
+    let mut candidate = Candidate { node_id: None, distance: f64::MAX };
     for node in graph.nodes() {
-        if distance > p.euclidean_distance(node.1.point()) {
-            nearest = Some(*node.0);
+        // maybe use harvesine distance instead of euclidean
+        let current_distance = p.euclidean_distance(node.1.point());
+        if candidate.distance > current_distance {
+            candidate.node_id = Some(*node.0);
+            candidate.distance = current_distance;
         }
     }
-    nearest.unwrap()
+    candidate.node_id.unwrap()
 }
 
 pub fn nearest_graph_nodes(graph: &Graph, points: &Vec<Point>) -> Vec<NodeId> {

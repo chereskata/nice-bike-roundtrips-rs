@@ -1,5 +1,5 @@
 use core::panic;
-use std::{error::Error, fs::File, io::{BufReader, Read}};
+use std::{error::Error, fs::File, io::{BufReader, Read}, println};
 
 use geo::Point;
 use graph::{Graph, NodeId};
@@ -23,9 +23,13 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         config.start_lat.clone(),
         config.start_lon.clone()
     ));
-    let visit = router::nearest_graph_nodes(&graph, &parser::interesting_points(&data));
+
+    let interesting_points = parser::interesting_points(&data);
+    let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
     
-    let route: Vec<NodeId> = router::unoptimized(&graph, &visit, &start);
+    let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
+
+    println!("{:?}", route);
     
     Ok(())
 }

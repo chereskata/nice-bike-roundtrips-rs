@@ -111,6 +111,7 @@ fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> {
 
 /// Tries to determine if an OsmObj is routable in a blacklist fashion
 /// note: Only Ways are routable, Nodes just give the way coordinates
+/// note: filter out parks, that are paid
 fn is_bikeable_way(way: &OsmWay) -> bool {
     // whitelist legally allowed and passable highways
     // note: an OsmWay can also be an outline of a building
