@@ -8,12 +8,16 @@ use priority_queue::PriorityQueue;
 
 use crate::graph::{Graph, NodeId};
 
-/// note: contains only starts and ends of ways
+mod preprocessor;
+
+/// note: the result yields only contains only starts and ends of ways (intersections)
+///       an accurate trace has to be calculated later on
+/// note: add functionality to use ways twice only in utmost demand
 pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
     // note: start could be a node in the middle of a way, breaks assumption that
     // only way's s and t are included here, but a_star will handle this
     // by defaulting into one direction
-    let mut visit = order_like_convex_hull(graph, start, visit);
+    let mut visit = preprocessor::order_with_concave_hull(graph, start, visit);
     // end node is start node, so push it too
     visit.push(*start);
     
@@ -32,45 +36,6 @@ pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Ve
     route
 }
 
-/// reorders visit nodes by reordering the nodes, so the final path will look
-/// similar to a convex hull
-/// first element has to be visited before second element and so on ...
-fn order_like_convex_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<NodeId>) -> Vec<NodeId> {
-    // for every node, starting with start: push to new vec and search nearest node from visit vector. 
-    // note: distance looks a lot like heuristics of A*
-
-    let mut ordered: Vec<NodeId> = Vec::new();
-
-    // temporarily add start node
-    ordered.push(*start);
-
-    // note: this could be speed up by sorting the visit nodes by some heurisic of direction
-    while ! visit.is_empty() {
-        let from = ordered.last().unwrap();
-
-        struct Candidate {
-            pub node_id: Option<NodeId>,
-            pub distance: f64,
-            pub index: Option<usize>,
-        }
-
-        let mut candidate = Candidate { node_id: None, distance: f64::MAX, index: None };
-        for i in 0..visit.len() {
-            let to = visit.get(i).unwrap();
-            let current_distance = heuristic_distance(graph, &from, &to);
-            if candidate.distance > current_distance {
-                candidate.node_id = Some(*to);
-                candidate.distance = current_distance;
-                candidate.index = Some(i);
-            }
-        }
-        ordered.push(visit.remove(candidate.index.unwrap()));
-    }
-
-    // remove start from ordered nodes
-    ordered.remove(0);
-    ordered
-}
 
 /// returns empty vector if no path exists between the two nodes
 /// note: is it really useful to return nodes? - the edges contain all location
