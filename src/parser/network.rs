@@ -6,7 +6,7 @@ use crate::parser::data::*;
 
 /// Build up a Graph from the routable part of OpenStreetMap data
 pub fn weave(data: &OsmData) -> Graph {
-    let ways: Vec<WayId> = bikeable_ways(&data.ways);
+    let ways: Vec<WayId> = bikeable_ways(&data);
 
     // nodes of the bikeable part of the street network
     // note: the value is an info, if the node is an intersection 
@@ -99,10 +99,10 @@ pub fn weave(data: &OsmData) -> Graph {
     Graph::new(graph_nodes, graph_edges)
 }
 /// Collect all [WayId]s of bikeable OpenStreetMap ways
-fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> { 
-    let bikeable_ids: Vec<WayId> = ways
+fn bikeable_ways(data: &OsmData) -> Vec<WayId> { 
+    let bikeable_ids: Vec<WayId> = data.ways
         .iter()
-        .filter(|(_, way)| is_bikeable_way(&way))
+        .filter(|(_, way)| is_bikeable_way(&way, &data.nodes))
         .map(|(id, _)| *id)
         .collect();
     
@@ -112,10 +112,42 @@ fn bikeable_ways(ways: &HashMap<WayId, OsmWay>) -> Vec<WayId> {
 /// Tries to determine if an OsmObj is routable in a blacklist fashion
 /// note: Only Ways are routable, Nodes just give the way coordinates
 /// note: filter out parks, that are paid
-fn is_bikeable_way(way: &OsmWay) -> bool {
+fn is_bikeable_way(way: &OsmWay, nodes: &HashMap<NodeId, OsmNode>) -> bool {
+    // check if the way contains some impassable barrier, like a locked gate
+    for node_id in way.nodes.iter() {
+        for tag in nodes.get(&node_id.0.unsigned_abs()).unwrap().tags.iter() {
+            let k = tag.0.as_str();
+            let v = tag.1.as_str();
+
+            if k == "access" {
+                match v {
+                    "no" | "private" | "permit" => return false,
+                    _ => ()
+                }
+            } 
+            if k == "bicycle" {
+                match v {
+                    "no" | "dismount" => return false,
+                    _ => ()
+                } 
+            }
+            if k == "barrier" {
+                match v {
+                    "bump_gate" | "full-height_turnstile" | "hampshire_gate" |
+                    "horse_stile" | "kissing_gate" | "motorcycle_barrier" |
+                    "sliding_beam" | "sliding_gate" | "spikes" | "stile" |
+                    "turnstile" | "wicket_gate" | "yes" => return false,
+                    _ => ()
+                }
+            }
+        }
+    }
+    
+
     // whitelist legally allowed and passable highways
     // note: an OsmWay can also be an outline of a building
     let mut is_bikeable = false;
+
     for tag in way.tags.iter() {
         let k = tag.0.as_str();
         let v = tag.1.as_str();
@@ -128,14 +160,13 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
         // note: a path without additional info could have a very bad surface
         if k == "highway" {
             match v {
-                "primary" | "primary_link" | "secondary" | "secondary_link" | 
+                // "primary" | "primary_link" | "secondary" | "secondary_link" | 
                 "tertiary" | "tertiary_link" | "unclassified" | "residential" |
                 "living_street" | "service" | "path" | "track" | "cycleway" | 
                 "footway" | "pedestrian" => { is_bikeable = true; break; },
                 _ => return false,
             }
         }
-        
     }
     if ! is_bikeable { return false; }
     
@@ -147,10 +178,11 @@ fn is_bikeable_way(way: &OsmWay) -> bool {
         if k == "access" && v == "private" { return false; } // note: way could have bicycle=yes
         if k == "bicycle" {
             match v {
-                "no" | "use_sidepath" => return false,
+                "no" | "dismount" | "use_sidepath" => return false,
                 _ => (),
             }
         }
+        if k == "maxspeed" && v.parse().unwrap_or(100.0) > 40.0 { return false; } // note: way could have maxspeed=walk
         if k == "motorroad" && v == "yes" { return false; } // note: way could have cycleway=*
         if k == "tracktype" && v == "grade5" { return false; }
         if k == "smoothness" {
@@ -238,7 +270,7 @@ mod tests {
         let data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
-        let bikeable_ways = bikeable_ways(&data.ways);
+        let bikeable_ways = bikeable_ways(&data);
     
         // "highway=primary" with "bicycle=use_sidepath" is NOT bikeable
         // url: https://www.openstreetmap.org/way/4290108#map=18/51.49782/7.45615
@@ -262,7 +294,7 @@ mod tests {
         let mut data = data_from_pbf(
             "resources/dortmund_sued.osm.pbf"
         );
-        let bikeable_ways = bikeable_ways(&mut data.ways);
+        let bikeable_ways = bikeable_ways(&mut data);
     
         // "highway=track" without any restrictions IS bikeable
         // url: https://www.openstreetmap.org/way/719650577#map=16/51.4879/7.4484

@@ -110,10 +110,10 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
 }
 
 fn heuristic_distance(graph: &Graph, from: &NodeId, to: &NodeId) -> f64 {
-    Point::euclidean_distance(
+    geo::VincentyDistance::vincenty_distance(
         graph.nodes().get(from).unwrap().point(),
         graph.nodes().get(to).unwrap().point()
-    )
+    ).unwrap_or(f32::MAX.into())
 }
 
 /// Closest point by euclidean distance
