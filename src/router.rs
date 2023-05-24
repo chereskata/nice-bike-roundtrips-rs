@@ -14,16 +14,18 @@ mod preprocessor;
 ///       an accurate trace has to be calculated later on
 /// note: add functionality to use ways twice only in utmost demand
 pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
+    let mut route: Vec<NodeId> = Vec::new();
+    // the route begins with the start node
+    route.push(*start);
+    
     // note: start could be a node in the middle of a way, breaks assumption that
     // only way's s and t are included here, but a_star will handle this
     // by defaulting into one direction
     let mut visit = preprocessor::order_with_concave_hull(graph, start, visit);
-    // end node is start node, so push it too
+    // the last node to visit is the start node
+    // note: if is_roundtrip ...
     visit.push(*start);
     
-    let mut route: Vec<NodeId> = Vec::new();
-    route.push(*start);
-
     // note: at the moment in between nodes of a way are not contained here
     while ! visit.is_empty() {
         let from = route.last().unwrap();
