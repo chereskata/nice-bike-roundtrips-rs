@@ -19,14 +19,15 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     
     let graph: Graph = parser::weave(&mut data);
-    let start = router::closest_point(&graph, &Point::new(
+    let start_point = Point::new(
         config.start_lat.clone(),
         config.start_lon.clone()
-    ));
-
-    let interesting_points = parser::interesting_points(&data);
-    let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
+    );
     
+    let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
+    let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
+
+    let start = router::closest_point(&graph, &start_point);
     let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
 
     println!("{:?}", route);

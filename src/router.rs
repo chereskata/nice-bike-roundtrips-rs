@@ -2,13 +2,13 @@ use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use geo::Point;
-use geo::EuclideanDistance;
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
 use crate::graph::{Graph, NodeId};
 
 mod preprocessor;
+// mod postprocessor;
 
 /// note: the result yields only contains only starts and ends of ways (intersections)
 ///       an accurate trace has to be calculated later on
@@ -32,6 +32,7 @@ pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Ve
         let to = visit.remove(0);
         
         let mut part = a_star(graph, from, &to).unwrap_or(Vec::new());
+        if part.len() > 0 { part.remove(0); }
         route.append(&mut part);
     }
 
@@ -81,14 +82,13 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
             // find other end of edge
             let edge = graph.edges().get(&edge_id).unwrap();
             let neighbour_node_id: NodeId;
-            if *edge.s() == node_id {
-                neighbour_node_id = *edge.t();
-            } else if *edge.directed() {
-                // this edge is directed, and [node] is at its end (node_id == t)
-                // neigbour_node is not directly reachable from [node]
-                continue;
-            } else {
+
+            if *edge.t() == node_id && *edge.directed() == false {
+                // go to the beginning of the edge
                 neighbour_node_id = *edge.s();
+            } else {
+                // go to the end of the edge
+                neighbour_node_id = *edge.t();
             }
 
             let tentative_g_score: f64 = g_score.get(&node_id).unwrap() + edge.distance();
@@ -106,17 +106,18 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
         }
         
     }
+        
     None
 }
 
 fn heuristic_distance(graph: &Graph, from: &NodeId, to: &NodeId) -> f64 {
-    geo::VincentyDistance::vincenty_distance(
+    geo::HaversineDistance::haversine_distance(
         graph.nodes().get(from).unwrap().point(),
         graph.nodes().get(to).unwrap().point()
-    ).unwrap_or(f32::MAX.into())
+    )
 }
 
-/// Closest point by euclidean distance
+/// Find nearest point that is in the road network
 pub fn closest_point(graph: &Graph, p: &Point) -> NodeId {
     struct Candidate {
         node_id: Option<NodeId>,
@@ -126,7 +127,7 @@ pub fn closest_point(graph: &Graph, p: &Point) -> NodeId {
     let mut candidate = Candidate { node_id: None, distance: f64::MAX };
     for node in graph.nodes() {
         // maybe use harvesine distance instead of euclidean
-        let current_distance = p.euclidean_distance(node.1.point());
+        let current_distance = geo::HaversineDistance::haversine_distance(p, node.1.point());
         if candidate.distance > current_distance {
             candidate.node_id = Some(*node.0);
             candidate.distance = current_distance;

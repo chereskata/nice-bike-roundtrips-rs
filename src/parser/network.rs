@@ -63,7 +63,7 @@ pub fn weave(data: &OsmData) -> Graph {
                 // measure distance
                 match points {
                     (Some(p1), Some(p2)) => {
-                        distance += geo::VincentyDistance::vincenty_distance(&p1, &p2).unwrap_or(0.0);
+                        distance += geo::HaversineDistance::haversine_distance(&p1, &p2);
                     },
                     _ => (),
                 }
@@ -145,7 +145,7 @@ fn is_bikeable_way(way: &OsmWay, nodes: &HashMap<NodeId, OsmNode>) -> bool {
     
 
     // whitelist legally allowed and passable highways
-    // note: an OsmWay can also be an outline of a building
+    // note: an OsmWay can also be an outline of a building => remove those too
     let mut is_bikeable = false;
 
     for tag in way.tags.iter() {
