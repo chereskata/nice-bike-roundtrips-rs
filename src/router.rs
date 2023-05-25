@@ -136,10 +136,30 @@ pub fn closest_point(graph: &Graph, p: &Point) -> NodeId {
     candidate.node_id.unwrap()
 }
 
+/// Find nearest intersection that is in the road network
+pub fn closest_intersection(graph: &Graph, p: &Point) -> NodeId {
+    struct Candidate {
+        node_id: Option<NodeId>,
+        distance: f64
+    }
+
+    let mut candidate = Candidate { node_id: None, distance: f64::MAX };
+    for node in graph.nodes() {
+        if node.1.edges().len() < 2 { continue; } // not an intersection
+        // maybe use harvesine distance instead of euclidean
+        let current_distance = geo::HaversineDistance::haversine_distance(p, node.1.point());
+        if candidate.distance > current_distance {
+            candidate.node_id = Some(*node.0);
+            candidate.distance = current_distance;
+        }
+    }
+    candidate.node_id.unwrap()
+}
+
 pub fn nearest_graph_nodes(graph: &Graph, points: &Vec<Point>) -> Vec<NodeId> {
     let ids: Vec<NodeId> = points
         .iter()
-        .map(|p| closest_point(&graph, &p))
+        .map(|p| closest_intersection(&graph, &p))
         .collect();
     ids
 }
