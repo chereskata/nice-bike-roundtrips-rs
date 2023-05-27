@@ -58,7 +58,30 @@ fn interesting_node(node: &OsmNode) -> Option<Point> {
 
         if k == "tourism" {
             match v {
-                "viewpoint" => return Some(into_point(&node)),
+                "viewpoint" | "alpine_hut" | "attraction" | "picnic_site" =>  {
+                    return Some(into_point(&node));
+                },
+                _ => (),
+            }
+        }
+        if k == "man_made" {
+            match v {
+                "cairn" | "cross" | "lighthouse" | "mineshaft" | "obelisk" |
+                "observatory" | "watermill" | "windmill" => {
+                    return Some(into_point(&node));
+                }
+                _ => (),
+            }
+        }
+        if k == "historic" {
+            match v {
+                "memorial" | "archaeological_site" | "wayside_cross" |
+                "ruins" | "wayside_shrine" | "monument" | "building" |
+                "castle" | "heritage" | "chruch" | "fort" | "city_gate" |
+                "house" | "wreck" | "cannon" | "aircraft" | "farm" | "tower" |
+                "monastery" | "locomotive" | "ship" | "tank" | "railway_car" => {
+                    return Some(into_point(&node));
+                },
                 _ => (),
             }
         }
@@ -78,7 +101,40 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
                 "water" => {
                     let poly = to_polygon(data, way);
                     let area = area(&poly);
-                    if area > 100.0 { return Some(center(&poly)) }
+                    if area > 100.0 { return Some(center(&poly)); }
+                },
+                _ => (),
+            }
+        }
+        if k == "tourism" {
+            match v {
+                "alpine_hut" | "attraction" | "picnic_site" => {
+                    let poly = to_polygon(data, way);
+                    return Some(center(&poly));
+                },
+                _ => (),
+            }
+        }
+        if k == "man_made" {
+            match v {
+                "cairn" | "obelisk" | "observatory" | "watermill" |
+                "windmill" => {
+                    let poly = to_polygon(data, way);
+                    return Some(center(&poly));
+                }
+                _ => (),                
+            }
+        }
+        if k == "historic" {
+            match v {
+                "memorial" | "archaeological_site" | "ruins" |
+                "wayside_shrine" | "monument" | "building" |
+                "castle" | "heriage" | "church" | "fort" |
+                "city_gate" | "house" | "hollow_way" | "wreck" | "aircraft" |
+                "farm" | "tower" | "monastery" | "bridge" | "aqueduct" |
+                "locomotive" | "ship" | "tank" | "railway_car" => {
+                    let poly = to_polygon(data, way);
+                    return Some(center(&poly));
                 },
                 _ => (),
             }
@@ -90,6 +146,7 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
 
 // returns a point, that is at the center of all ways, if it is interesting
 fn interesting_relation(relation: &OsmRelation) -> Option<Point> {
+    // add heritage
     todo!();
 }
 
