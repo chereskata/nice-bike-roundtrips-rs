@@ -1,82 +1,124 @@
 use std::collections::HashMap;
 use geo::Point;
+use geo::Polygon;
 use osmpbfreader::Node as OsmNode;
 use osmpbfreader::Way as OsmWay;
+use osmpbfreader::Relation as OsmRelation;
 
 use crate::parser::data::*;
 
+// returns some of all interesting points, so route will always different (todo)
 pub fn interesting_surrounding(
     data: &OsmData,
     start: &Point,
-    route_distance: &u8
+    travel_distance: &u8
 ) -> Vec<Point> {
-    let radius = assumed_radius(route_distance);
-
-    println!("rad: {:?}", radius);
+    // let radius = assumed_radius(travel_distance);
+    let radius = 25_000.0;
     
-    // let mut points: Vec<Point> = viewpoints(&data.nodes)
-        // .iter().filter_map(|id| {
-            // let point = into_point(data.nodes.get(&id).unwrap());
-            // let distance = geo::algorithm::VincentyDistance::vincenty_distance(start, &point).unwrap_or(f64::MAX);
-            // if distance < radius {
-                // return Some(point);
-            // }
-            // None
-        // })
-        // .collect();
-
     let mut points: Vec<Point> = Vec::new();
 
-    points.append(&mut center_of_lakes(&data, start, &radius));
+    points.append(&mut data.nodes
+        .iter()
+        .filter_map(|node| interesting_node(node.1))
+        .collect()
+    );
+
+    points.append(&mut data.ways
+        .iter()
+        .filter_map(|way| interesting_way(data, way.1))
+        .collect()
+    );
+
+    // remove all points that are too far away
+    // note: include in append steps above to save runtime
+    points = points.into_iter()
+        .filter(|p| {
+            let distance = geo::HaversineDistance::haversine_distance(start, p);
+            distance < radius
+        })
+        .collect();
+    
+
+    // to always get a different route, use only 20 random intersting points
+    use rand::thread_rng;
+    use rand::seq::SliceRandom;
+    points.shuffle(&mut thread_rng());
+    println!("points: {}", points.len());
+    points.truncate((radius * 0.001) as usize);
     
     points
 }
 
-fn viewpoints(data: &OsmData) -> Vec<NodeId> {
-    let viewpoint_ids: Vec<NodeId> = data.nodes
-        .iter()
-        .filter(|(_, node)| node.tags.contains("tourism", "viewpoint"))
-        .map(|(id, _)| *id)
-        .collect();
-    viewpoint_ids
+// returns a point if it is interesting
+fn interesting_node(node: &OsmNode) -> Option<Point> {
+    for tag in node.tags.iter() {
+        let k = tag.0.as_str();
+        let v = tag.1.as_str();
+
+        if k == "tourism" {
+            match v {
+                "viewpoint" => return Some(into_point(&node)),
+                _ => (),
+            }
+        }
+    }
+    
+    None
 }
 
-fn center_of_lakes(data: &OsmData, start: &Point, radius: &f64) -> Vec<Point> {
-    // let mut centroid_of_lakes: Vec<Point> = Vec::new();
-    
-    data.ways
-        .iter()
-        .filter_map(|(_, way)| {
-            if way.tags.iter().any(|(k, v)| k == "natural" && v == "water") {
-                let points: Vec<geo::Coord> = way.nodes
-                    .iter()
-                    .map(|node_id| {
-                        let node = data.nodes.get(&node_id.0.unsigned_abs()).unwrap();
-                        into_point(&node).0
-                    })
-                    .collect();
-                // check for bigger lakes only
-                // if points.len() < 10 { return None; }
-                let poly = geo::Polygon::new(geo::LineString::new(points), vec![]);
-                // ls.close();
-                let area = geo::algorithm::ChamberlainDuquetteArea::chamberlain_duquette_unsigned_area(&poly);                 
-                if area < 100.0 { return None; }
+// returns a point, that is at the center of the way, if it is intersting
+fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
+    for tag in way.tags.iter() {
+        let k = tag.0.as_str();
+        let v = tag.1.as_str();
 
-                let centroid = geo::algorithm::Centroid::centroid(&poly).unwrap();
-                if geo::algorithm::HaversineDistance::haversine_distance(&centroid, start) > *radius {
-                    return None;
-                }
-                
-                return Some(centroid);
+        if k == "natural" {
+            match v {
+                "water" => {
+                    let poly = to_polygon(data, way);
+                    let area = area(&poly);
+                    if area > 100.0 { return Some(center(&poly)) }
+                },
+                _ => (),
             }
-            None
+        }
+    }
+    
+    None
+}
+
+// returns a point, that is at the center of all ways, if it is interesting
+fn interesting_relation(relation: &OsmRelation) -> Option<Point> {
+    todo!();
+}
+
+// extract a ways coorinates for further processing
+fn to_polygon(data: &OsmData, way: &OsmWay) -> Polygon {
+    let coords: Vec<geo::Coord> = way.nodes
+        .iter()
+        .map(|node_id| {
+            let node = data.nodes.get(&node_id.0.unsigned_abs()).unwrap();
+            into_point(&node).0
         })
-        .collect()
+        .collect();
+    
+    Polygon::new(geo::LineString::new(coords), vec![])
+}
+
+// area in qm
+fn area(poly: &Polygon) -> f64 {    
+    geo::algorithm::ChamberlainDuquetteArea::chamberlain_duquette_unsigned_area(poly)
+}
+
+// compute the center point (Centroid) of an area
+fn center(poly: &Polygon) -> Point {
+    geo::algorithm::Centroid::centroid(poly).unwrap()
 }
 
 // return radius in meters - distance is kms 
-fn assumed_radius(distance: &u8) -> f64 {
-    *distance as f64 * 1000.0
+fn assumed_radius(travel_distance: &u8) -> f64 {
+    *travel_distance as f64 * 1000.0 / 3.14
 }
 
 fn into_point(node: &OsmNode) -> Point {
@@ -85,32 +127,32 @@ fn into_point(node: &OsmNode) -> Point {
 
 #[cfg(test)]
 mod tests {
-    use super::{*, viewpoints};
-    use crate::parser::data_from_pbf;
+    // use super::{*, viewpoints};
+    // use crate::parser::data_from_pbf;
 
-    #[test]
-    fn do_sued_viewpoints() {
-        let data = data_from_pbf(
-            "resources/dortmund_sued.osm.pbf"
-        );
+    // #[test]
+    // fn do_sued_viewpoints() {
+    //     let data = data_from_pbf(
+    //         "resources/dortmund_sued.osm.pbf"
+    //     );
 
-        let result = viewpoints(&data);
-        let real: Vec<NodeId> = vec![
-            283102981,
-            315382554,
-            583299252,
-            583299258,
-            583299260,
-            701550528,
-            3952182019,
-        ];
+    //     let result = viewpoints(&data);
+    //     let real: Vec<NodeId> = vec![
+    //         283102981,
+    //         315382554,
+    //         583299252,
+    //         583299258,
+    //         583299260,
+    //         701550528,
+    //         3952182019,
+    //     ];
 
-        for id in &real {
-            assert!(result.contains(&id));
-        }        
+    //     for id in &real {
+    //         assert!(result.contains(&id));
+    //     }        
         
-        assert_eq!(result.len(), real.len());
-    }
+    //     assert_eq!(result.len(), real.len());
+    // }
 
     // #[test]
     // fn do_sued_interesting_points() {
