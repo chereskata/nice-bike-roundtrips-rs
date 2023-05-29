@@ -13,8 +13,7 @@ pub fn interesting_surrounding(
     start: &Point,
     travel_distance: &u8
 ) -> Vec<Point> {
-    // let radius = assumed_radius(travel_distance);
-    let radius = 25_000.0;
+    let radius = assumed_radius(travel_distance);
     
     let mut points: Vec<Point> = Vec::new();
 
@@ -44,7 +43,7 @@ pub fn interesting_surrounding(
     use rand::thread_rng;
     use rand::seq::SliceRandom;
     points.shuffle(&mut thread_rng());
-    println!("points: {}", points.len());
+    // println!("points: {}", points.len());
     points.truncate((radius * 0.001) as usize);
     
     points

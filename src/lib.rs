@@ -1,5 +1,5 @@
 use core::panic;
-use std::{error::Error, fs::File, io::{BufReader, Read}, println};
+use std::{error::Error, fs::File, io::{BufReader, Read}, println, path::Path};
 
 use geo::Point;
 use graph::{Graph, NodeId};
@@ -30,8 +30,16 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let start = router::closest_point(&graph, &start_point);
     let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
 
-    println!("{:?}", route);
-    
+    let gpx = router::postprocessor::intersections_to_gpx(&graph, &route);
+
+    let gpx_path = Path::new("/tmp/result.gpx");
+    let mut gpx_file = match File::create(&gpx_path) {
+        Err(why) => panic!("couldn't create path: {}", why),
+        Ok(file) => file,
+    };
+
+    gpx::write(&gpx, gpx_file).ok();
+
     Ok(())
 }
 

@@ -8,7 +8,7 @@ use priority_queue::PriorityQueue;
 use crate::graph::{Graph, NodeId};
 
 mod preprocessor;
-// mod postprocessor;
+pub mod postprocessor;
 
 /// note: the result yields only contains only starts and ends of ways (intersections)
 ///       an accurate trace has to be calculated later on
