@@ -178,7 +178,7 @@ fn assumed_radius(travel_distance: &u8) -> f64 {
 }
 
 fn into_point(node: &OsmNode) -> Point {
-    Point::new(node.lat(), node.lon())
+    Point::new(node.lon(), node.lat())
 }
 
 #[cfg(test)]
@@ -217,7 +217,7 @@ mod tests {
     //     );
 
     //     let result = interesting_points(&data);
-    //     let real: Vec<Point> = vec![
+    //     let real: Vec<Point> = vec![ // note: lat = y and lon = x
     //         Point::new(51.4704933_f64, 7.4506593_f64),
     //         Point::new(51.4765483_f64, 7.4648567_f64),
     //         Point::new(51.4816900_f64, 7.4700769_f64),

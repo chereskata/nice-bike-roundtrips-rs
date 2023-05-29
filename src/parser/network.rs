@@ -252,7 +252,7 @@ fn is_directed(way: &OsmWay) -> bool {
 }
 
 fn point_from(node: &OsmNode) -> geo::Point {
-    geo::Point::new(node.lat(), node.lon())
+    geo::Point::new(node.lon(), node.lat())
 }
 
 pub fn to_way_id(edge_id: &EdgeId) -> WayId {    

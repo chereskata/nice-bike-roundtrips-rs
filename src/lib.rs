@@ -19,9 +19,9 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     
     let graph: Graph = parser::weave(&mut data);
-    let start_point = Point::new(
-        config.start_lat.clone(),
-        config.start_lon.clone()
+    let start_point = Point::new(        
+        config.start_lon.clone(),
+        config.start_lat.clone()
     );
     
     let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
