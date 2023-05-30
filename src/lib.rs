@@ -23,22 +23,35 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         config.start_lon.clone(),
         config.start_lat.clone()
     );
+
+
+    // real_travel_distance is in meters, so convert the expected distance to meters
+    // and add 10% to it
+    let expected_travel_distance = config.distance as f64 * 1100.0;
+    let mut real_travel_distance = f64::MAX;
+    let mut gpx: Option<gpx::Gpx> = None;
     
-    let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
-    let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
+    while real_travel_distance > expected_travel_distance {
+        let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
+        let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
 
-    let start = router::closest_point(&graph, &start_point);
-    let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
+        let start = router::closest_point(&graph, &start_point);
+        let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
 
-    let gpx = router::postprocessor::intersections_to_gpx(&graph, &route);
+        gpx = Some(router::postprocessor::intersections_to_gpx(&graph, &route));
+        real_travel_distance = geo::algorithm::HaversineLength::haversine_length(
+            &mut gpx.clone().unwrap().routes.first().unwrap().linestring()
+        );
+    }
 
+    
     let gpx_path = Path::new("/tmp/result.gpx");
-    let mut gpx_file = match File::create(&gpx_path) {
+    let gpx_file = match File::create(&gpx_path) {
         Err(why) => panic!("couldn't create path: {}", why),
         Ok(file) => file,
     };
 
-    gpx::write(&gpx, gpx_file).ok();
+    gpx::write(&gpx.unwrap(), gpx_file).ok();
 
     Ok(())
 }
