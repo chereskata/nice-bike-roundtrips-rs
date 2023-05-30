@@ -121,10 +121,20 @@ fn is_bikeable_way(way: &OsmWay, nodes: &HashMap<NodeId, OsmNode>) -> bool {
 
             if k == "access" {
                 match v {
-                    "no" | "private" | "permit" => return false,
+                    "no" | "private" | "permit" | "customers" => return false,
                     _ => ()
                 }
-            } 
+            }
+            if k == "entrance" {
+                // if an entrance has no access tag, do not enter (incomplete mapping)
+                // note: this could be calculated more efficiently by some kind of table
+                // that is filled out and needs only one iteration
+                if ! nodes.get(&node_id.0.unsigned_abs()).unwrap().tags
+                    .iter()
+                    .any(|t| t.0.as_str() == "access") {
+                    return false;
+                }
+            }
             if k == "bicycle" {
                 match v {
                     "no" | "dismount" => return false,
