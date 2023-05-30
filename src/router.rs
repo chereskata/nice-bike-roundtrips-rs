@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::{cmp::Reverse, collections::HashSet};
 use std::collections::HashMap;
 
 use geo::Point;
@@ -25,14 +25,26 @@ pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Ve
     // the last node to visit is the start node
     // note: if is_roundtrip ...
     visit.push(*start);
+
+    // add the last few nodes to a blacklist,
+    // to avoid walking paths twice / backwards (if possible)
+    let mut blacklist: HashSet<NodeId> = HashSet::new();
+    let no_blacklist: HashSet<NodeId> = HashSet::new();
     
     // note: at the moment in between nodes of a way are not contained here
     while ! visit.is_empty() {
         let from = route.last().unwrap();
         let to = visit.remove(0);
         
-        let mut part = a_star(graph, from, &to).unwrap_or(Vec::new());
+        let mut part;
+        match a_star(graph, &blacklist, from, &to) {
+            Some(p) => part = p,
+            None => part = a_star(graph, &no_blacklist, from, &to).unwrap_or(Vec::new()),
+        }
         if part.len() > 0 { part.remove(0); }
+        
+        blacklist.extend(part.iter().copied());
+        
         route.append(&mut part);
     }
 
@@ -44,7 +56,12 @@ pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Ve
 /// note: is it really useful to return nodes? - the edges contain all location
 /// data, that has to be reconstructed later on
 
-fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
+fn a_star(
+    graph: &Graph,
+    blacklist: &HashSet<NodeId>,
+    start: &NodeId,
+    end: &NodeId
+) -> Option<Vec<NodeId>> {
     // key == node, value == predecessor
     let mut came_from: HashMap<NodeId, NodeId> = HashMap::new();
 
@@ -52,11 +69,10 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
     let mut g_score: HashMap<NodeId, f64> = HashMap::new();
     g_score.insert(*start, 0_f64);
 
-    // heuristic of distance from start via=key to end
-    let h = heuristic_distance(graph, start, end);
-    
+    // heuristic of distance from start node via=key to end node
     let mut f_score: HashMap<NodeId, f64> = HashMap::new();
-    f_score.insert(*start, h);
+    let h = heuristic_distance(graph, start, end);
+    f_score.insert(*start, h); // start via start to end
 
     let mut open_set: PriorityQueue<NodeId, Reverse<NotNan<f64>>> = PriorityQueue::new();
     open_set.push(*start, Reverse(NotNan::new(h).unwrap()));
@@ -89,6 +105,12 @@ fn a_star(graph: &Graph, start: &NodeId, end: &NodeId) -> Option<Vec<NodeId>> {
             } else {
                 // go to the end of the edge
                 neighbour_node_id = *edge.t();
+            }
+
+            // blacklisted nodes are not to be visited
+            if blacklist.contains(&neighbour_node_id) {
+                // already in set => node has been explicitly excluded
+                continue;
             }
 
             let tentative_g_score: f64 = g_score.get(&node_id).unwrap() + edge.distance();
@@ -192,10 +214,10 @@ mod tests {
 
         let graph = Graph::new(graph_nodes, graph_edges);
 
-        let result = a_star(&graph, &1, &0);
+        let result = a_star(&graph, &mut HashSet::new(), &1, &0);
         assert_eq!(None, result);
 
-        let result = a_star(&graph, &2, &0);
+        let result = a_star(&graph, &mut HashSet::new(), &2, &0);
         assert_eq!(None, result);
     }
 
@@ -254,7 +276,7 @@ mod tests {
 
         let graph = Graph::new(graph_nodes, graph_edges);
         
-        let result = a_star(&graph, &0, &6).unwrap();
+        let result = a_star(&graph, &mut HashSet::new(), &0, &6).unwrap();
         let should_be = vec![0, 1, 2, 3, 7, 6];
 
         assert_eq!(should_be, result);
