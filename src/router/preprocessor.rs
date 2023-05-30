@@ -21,7 +21,7 @@ pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<No
 
     // note: concavity factor could be radius dependend
     // note: concave hull is not sorted
-    let hull = ls.concave_hull(2.0);
+    let hull = ls.concave_hull(3.0);
     // let hull = geo::algorithm::ConvexHull::convex_hull(&ls);
 
     let mut ring: Vec<Point> = hull.exterior().points().collect();

@@ -142,6 +142,12 @@ fn is_bikeable_way(way: &OsmWay, nodes: &HashMap<NodeId, OsmNode>) -> bool {
                 } 
             }
             if k == "barrier" {
+                if ! nodes.get(&node_id.0.unsigned_abs()).unwrap().tags
+                    .iter()
+                    .any(|t| t.0.as_str() == "access") {
+                    return false;
+                }
+                
                 match v {
                     "bump_gate" | "full-height_turnstile" | "hampshire_gate" |
                     "horse_stile" | "kissing_gate" | "motorcycle_barrier" |

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use geo::Point;
 use geo::Polygon;
 use osmpbfreader::Node as OsmNode;
@@ -26,6 +25,12 @@ pub fn interesting_surrounding(
     points.append(&mut data.ways
         .iter()
         .filter_map(|way| interesting_way(data, way.1))
+        .collect()
+    );
+
+    points.append(&mut data.relations
+        .iter()
+        .filter_map(|relation| interesting_relation(data, relation.1))
         .collect()
     );
 
@@ -156,9 +161,68 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
 }
 
 // returns a point, that is at the center of all ways, if it is interesting
-fn interesting_relation(relation: &OsmRelation) -> Option<Point> {
+fn interesting_relation(data: &OsmData, relation: &OsmRelation) -> Option<Point> {
     // add heritage
-    todo!();
+
+    // check only for multipolygons as of now
+    if ! relation.tags.iter().any(|tag| tag.0.as_str() == "type" && tag.1.as_str() == "multipolygon") {
+        return None
+    }
+
+    for tag in relation.tags.iter() {
+        let k = tag.0.as_str();
+        let v = tag.1.as_str();
+
+              
+        if k == "natural" {
+            match v {
+                "water" | "grassland" | "heath" | "wood" | "bay" |
+                "beach" | "coastline" | "dune"  => {
+                    return relation_to_point(data, relation);
+                },
+                _ => (),
+            }
+        }
+        if k == "landuse" {
+            match v {
+                "farmland" | "forest" | "flowerbed" | "meadow" | "orchard" |
+                "plant_nursery" | "vineyard" | "grass" => {
+                    return relation_to_point(data, relation);
+                },
+                _ => (),
+            }
+        }
+    }
+
+    None
+}
+
+// computes the center of the multipolygon relation
+fn relation_to_point(data: &OsmData, relation: &OsmRelation) -> Option<Point> {
+    let mut all_outer_centers: Vec<Point> = relation.refs
+        .iter()
+        .filter_map(|a_ref| {
+            // only outer memberers are interesting for now
+            if a_ref.role.as_str() != "outer" { return None; }
+            // only ways are intersting for us
+            if a_ref.member.is_way() == false { return None; }
+
+            let way_id = a_ref.member.way().unwrap().0.unsigned_abs();
+            let way = data.ways.get(&way_id).unwrap();
+            
+            let poly = to_polygon(data, &way);
+            let area = area(&poly);
+            if area > 100.0 { center(&poly); }
+
+            None
+        })
+        .collect();
+
+    use rand::thread_rng;
+    use rand::seq::SliceRandom;
+    all_outer_centers.shuffle(&mut thread_rng());
+
+    all_outer_centers.pop()
 }
 
 // extract a ways coorinates for further processing
