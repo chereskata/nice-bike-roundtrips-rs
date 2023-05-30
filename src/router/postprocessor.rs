@@ -36,14 +36,14 @@ pub fn intersections_to_gpx(graph: &Graph, main_nodes: &Vec<NodeId>) -> Gpx {
         links: Vec::new(),
         number: None,
         _type: None,
-        points: waypoints.clone()
+        points: waypoints
     };
     
     Gpx {
         version: gpx::GpxVersion::Gpx11,
         creator: Some(String::from_str("nice-bike-roundtrips-rs").unwrap()),
         metadata: None,
-        waypoints,
+        waypoints: Vec::new(),
         tracks: Vec::new(),
         routes: vec![route],
     }

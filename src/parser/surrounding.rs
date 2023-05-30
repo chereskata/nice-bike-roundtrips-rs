@@ -44,7 +44,7 @@ pub fn interesting_surrounding(
     use rand::seq::SliceRandom;
     points.shuffle(&mut thread_rng());
     // println!("points: {}", points.len());
-    points.truncate((radius * 0.001) as usize);
+    points.truncate((radius * 0.005) as usize);
     
     points
 }
@@ -97,7 +97,19 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
 
         if k == "natural" {
             match v {
-                "water" => {
+                "water" | "grassland" | "heath" | "wood" | "bay" |
+                "beach" | "coastline" | "dune"  => {
+                    let poly = to_polygon(data, way);
+                    let area = area(&poly);
+                    if area > 100.0 { return Some(center(&poly)); }
+                },
+                _ => (),
+            }
+        }
+        if k == "landuse" {
+            match v {
+                "farmland" | "forest" | "flowerbed" | "meadow" | "orchard" |
+                "plant_nursery" | "vineyard" | "grass" => {
                     let poly = to_polygon(data, way);
                     let area = area(&poly);
                     if area > 100.0 { return Some(center(&poly)); }
@@ -174,7 +186,7 @@ fn center(poly: &Polygon) -> Point {
 
 // return radius in meters - distance is kms 
 fn assumed_radius(travel_distance: &u8) -> f64 {
-    *travel_distance as f64 * 1000.0 / 3.14
+    *travel_distance as f64 * 1000.0 / 6.28
 }
 
 fn into_point(node: &OsmNode) -> Point {
