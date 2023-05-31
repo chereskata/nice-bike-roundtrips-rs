@@ -49,7 +49,7 @@ pub fn interesting_surrounding(
     use rand::seq::SliceRandom;
     points.shuffle(&mut thread_rng());
     // println!("points: {}", points.len());
-    points.truncate((radius * 0.005) as usize);
+    points.truncate(4 + ((radius * 0.0005) as usize));
     
     points
 }
