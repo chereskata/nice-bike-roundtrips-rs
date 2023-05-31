@@ -207,6 +207,32 @@ fn is_bikeable_way(way: &OsmWay, nodes: &HashMap<NodeId, OsmNode>) -> bool {
                 _ => (),
             }
         }
+        if k == "width" || k == "est_width" {
+            let mut width: f64 = 0.0;
+            k.split_whitespace().enumerate().for_each(|(i, part)| {
+                if i == 0 {
+                    width = v.parse().unwrap_or(0.0);
+                }
+                if i == 1 {
+                    // conversion factor
+                    let mut as_meters = 1.0;
+                    match part {
+                        "km" => as_meters = 1_000.0,
+                        "m" | "metres" => (),
+                        "dm" => as_meters = 0.1,
+                        "cm" => as_meters = 0.01,
+                        "mm" => as_meters = 0.001,
+                        "ft" | "feet" => as_meters = 0.3048,
+                        "mi" => as_meters = 1609.344,
+                        _ => (),
+                    }
+                    // only in meter from now on
+                    width = width * as_meters;
+                }
+            });
+
+            if width < 0.33 { return false; }
+        }
         if k == "surface" {
             match v {
                 "stepping_stones" | "gravel" | "rock" |
