@@ -59,7 +59,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
 
     
-    let gpx_path = Path::new("/tmp/result.gpx");
+    let gpx_path = Path::new(&config.result);
     let gpx_file = match File::create(&gpx_path) {
         Err(why) => panic!("couldn't create path: {}", why),
         Ok(file) => file,
@@ -77,6 +77,7 @@ pub struct Config {
     start_lat: f64,
     start_lon: f64,
     pbf: String,
+    result: String
 }
 
 impl Config {
