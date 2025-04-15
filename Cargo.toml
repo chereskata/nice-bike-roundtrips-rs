@@ -10,7 +10,7 @@ h3o = { version = "0.8.0", features = ["geo", "arbitrary", "serde"] }
 geo = "0.30.0"
 osmpbfreader = "0.19.0"
 smartstring = "1.0.1"
-gpx = { version = "0.8.6", features = ["serde"] }
+gpx = { version = "0.10.0", features = ["serde"] }
 toml = "0.8.20"
 serde = "1.0.160"
 priority-queue = "2.3.1"
