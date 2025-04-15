@@ -2,4 +2,4 @@ distance = 10
 start_lat = 51.4896161
 start_lon = 7.4058927
 pbf = "resources/dortmund.osm.pbf"
-result = "resources/result.gpx"
+result = "/tmp/result.gpx"

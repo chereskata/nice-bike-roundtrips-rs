@@ -14,4 +14,5 @@ rust based tool to calculate a GPX file that contains a beautiful trip around yo
 ## How to run
 1. Install Rust runtime, see [here](https://doc.rust-lang.org/book/ch01-01-installation.html)
 2. `git clone https://github.com/chereskata/nice-bike-roundtrips-rs.git`
-3. Compile and run the project with `cd nice-bike-roundtrips-rs; cargo run`
+3. Configure the tool by using the reference `config.tom.example` file. The expected location is `resources/config.toml`
+4. Compile and run the project with `cd nice-bike-roundtrips-rs; cargo run`

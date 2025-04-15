@@ -14,3 +14,9 @@ Cargo.lock
 
 # IDE Files
 .idea
+
+# Remove any results from the repo
+*.gpx
+
+# Do not add user specific configuration file
+resources/config.toml
