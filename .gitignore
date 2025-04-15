@@ -11,3 +11,6 @@ Cargo.lock
 
 # Big osm.pbf files
 /resources/linnich.osm.pbf
+
+# IDE Files
+.idea
