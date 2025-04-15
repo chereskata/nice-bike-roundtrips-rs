@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, collections::HashSet};
 use std::collections::HashMap;
 
-use geo::Point;
+use geo::{Distance, Point};
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
@@ -133,9 +133,9 @@ fn a_star(
 }
 
 fn heuristic_distance(graph: &Graph, from: &NodeId, to: &NodeId) -> f64 {
-    geo::HaversineDistance::haversine_distance(
-        graph.nodes().get(from).unwrap().point(),
-        graph.nodes().get(to).unwrap().point()
+    geo::Haversine.distance(
+        *graph.nodes().get(from).unwrap().point(),
+        *graph.nodes().get(to).unwrap().point()
     )
 }
 
@@ -149,7 +149,7 @@ pub fn closest_point(graph: &Graph, p: &Point) -> NodeId {
     let mut candidate = Candidate { node_id: None, distance: f64::MAX };
     for node in graph.nodes() {
         // maybe use harvesine distance instead of euclidean
-        let current_distance = geo::HaversineDistance::haversine_distance(p, node.1.point());
+        let current_distance = geo::Haversine.distance(*p, *node.1.point());
         if candidate.distance > current_distance {
             candidate.node_id = Some(*node.0);
             candidate.distance = current_distance;
@@ -169,7 +169,7 @@ pub fn closest_intersection(graph: &Graph, p: &Point) -> NodeId {
     for node in graph.nodes() {
         if node.1.edges().len() < 2 { continue; } // not an intersection
         // maybe use harvesine distance instead of euclidean
-        let current_distance = geo::HaversineDistance::haversine_distance(p, node.1.point());
+        let current_distance = geo::Haversine.distance(*p, *node.1.point());
         if candidate.distance > current_distance {
             candidate.node_id = Some(*node.0);
             candidate.distance = current_distance;

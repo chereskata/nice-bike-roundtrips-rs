@@ -1,6 +1,6 @@
 use osmpbfreader::{Node as OsmNode, Way as OsmWay};
 use std::collections::HashMap;
-
+use geo::Distance;
 use crate::graph::{Graph, NodeId, EdgeId, Node as GraphNode, Edge as GraphEdge};
 use crate::parser::data::*;
 
@@ -63,7 +63,7 @@ pub fn weave(data: &OsmData) -> Graph {
                 // measure distance
                 match points {
                     (Some(p1), Some(p2)) => {
-                        distance += geo::HaversineDistance::haversine_distance(&p1, &p2);
+                        distance += geo::Haversine.distance(p1, p2);
                     },
                     _ => (),
                 }

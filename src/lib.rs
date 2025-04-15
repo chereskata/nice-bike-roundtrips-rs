@@ -1,7 +1,7 @@
 use core::panic;
 use std::{error::Error, fs::File, io::{BufReader, Read}, println, path::Path};
 
-use geo::Point;
+use geo::{Length, Point};
 use graph::{Graph, NodeId};
 use parser::OsmData;
 
@@ -52,7 +52,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         ls2.dedup();
         if ls2.len() < ls.0.len() * 0.75 as usize { continue; }
         
-        real_travel_distance = geo::algorithm::HaversineLength::haversine_length(
+        real_travel_distance = geo::algorithm::Haversine.length(
             &mut gpx.clone().unwrap().routes.first().unwrap().linestring()
         );
         println!("dist is {}", real_travel_distance);

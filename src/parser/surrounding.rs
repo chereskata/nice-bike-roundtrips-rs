@@ -1,4 +1,4 @@
-use geo::Point;
+use geo::{Distance, Point};
 use geo::Polygon;
 use osmpbfreader::Node as OsmNode;
 use osmpbfreader::Way as OsmWay;
@@ -38,7 +38,7 @@ pub fn interesting_surrounding(
     // note: include in append steps above to save runtime
     points = points.into_iter()
         .filter(|p| {
-            let distance = geo::HaversineDistance::haversine_distance(start, p);
+            let distance = geo::Haversine.distance(*start, *p);
             distance < radius
         })
         .collect();
