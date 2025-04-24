@@ -1,5 +1,7 @@
 distance = 10
 start_lat = 51.4896161
 start_lon = 7.4058927
+dest_lat = 51.4425347 # optional, only for source -> destination
+dest_lon = 7.2627461 # optional, only for source -> destination
 pbf = "resources/dortmund.osm.pbf"
 result = "/tmp/result.gpx"

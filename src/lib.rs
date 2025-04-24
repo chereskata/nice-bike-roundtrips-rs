@@ -71,11 +71,14 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 }
 
 /// Runtime configuration
+/// if dest_* is empty, then it calculates a roundtrip or else a from to route
 #[derive(serde::Deserialize)]
 pub struct Config {
     distance: u8,
     start_lat: f64,
     start_lon: f64,
+    dest_lat: Option<f64>,
+    dest_lon: Option<f64>,
     pbf: String,
     result: String
 }
