@@ -13,7 +13,7 @@ pub mod postprocessor;
 /// note: the result yields only contains only starts and ends of ways (intersections)
 ///       an accurate trace has to be calculated later on
 /// note: add functionality to use ways twice only in utmost demand
-pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
+pub fn roundtrip_few_concavehull_points(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
     let mut route: Vec<NodeId> = Vec::new();
     // the route begins with the start node
     route.push(*start);
@@ -55,7 +55,6 @@ pub fn unoptimized(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Ve
 /// returns empty vector if no path exists between the two nodes
 /// note: is it really useful to return nodes? - the edges contain all location
 /// data, that has to be reconstructed later on
-
 fn a_star(
     graph: &Graph,
     blacklist: &HashSet<NodeId>,

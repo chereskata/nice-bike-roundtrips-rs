@@ -24,38 +24,52 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         config.start_lat.clone()
     );
 
-
-    // real_travel_distance is in meters, so convert the expected distance to meters
-    // and add 10% to it
-    let expected_travel_distance = (config.distance as f64 * 0_900.0, config.distance as f64 * 1_100.0);
-    let mut real_travel_distance = f64::MAX;
     let mut gpx: Option<gpx::Gpx> = None;
 
-    println!("exp {:?}", expected_travel_distance);
-    
-    while real_travel_distance < expected_travel_distance.0 ||
-          real_travel_distance > expected_travel_distance.1 {
-        let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
-        let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
+    if  config.dest_lon.is_some() && config.dest_lat.is_some() {
+        // point to point
+        println!("calculating source -> destination");
 
         let start = router::closest_point(&graph, &start_point);
-        let route: Vec<NodeId> = router::unoptimized(&graph, &mut visit, &start);
+        let destination = router::closest_point(&graph, &Point::new(config.dest_lon.unwrap().clone(), config.dest_lon.unwrap()));
 
-        gpx = Some(router::postprocessor::intersections_to_gpx(&graph, &route));
-        let ls = gpx.clone().unwrap().routes.first().unwrap().linestring();
 
-        // check if start and end is equal
-        if ls.0.first() != ls.0.last() { continue; }
+        todo!();
+    } else {
+        // roundtrip
+        println!("calculating roundtrip");
 
-        // if more than 25% of points are visited twice, it is not a nice route
-        let mut ls2 = ls.0.clone();
-        ls2.dedup();
-        if ls2.len() < ls.0.len() * 0.75 as usize { continue; }
-        
-        real_travel_distance = geo::algorithm::Haversine.length(
-            &mut gpx.clone().unwrap().routes.first().unwrap().linestring()
-        );
-        println!("dist is {}", real_travel_distance);
+        // real_travel_distance is in meters, so convert the expected distance to meters
+        // and add 10% to it
+        let expected_travel_distance = (config.distance as f64 * 0_900.0, config.distance as f64 * 1_100.0);
+        let mut real_travel_distance = f64::MAX;
+
+        println!("exp {:?}", expected_travel_distance);
+
+        while real_travel_distance < expected_travel_distance.0 || real_travel_distance > expected_travel_distance.1 {
+            let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
+            let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
+
+            let start = router::closest_point(&graph, &start_point);
+            let route: Vec<NodeId> = router::roundtrip_few_concavehull_points(&graph, &mut visit, &start);
+
+            // convert the minimal spanning tree for intersections to real path traces, that resemble the real way in more detail
+            gpx = Some(router::postprocessor::intersections_to_gpx(&graph, &route));
+            let ls = gpx.clone().unwrap().routes.first().unwrap().linestring();
+
+            // check if start and end is equal
+            if ls.0.first() != ls.0.last() { continue; }
+
+            // if more than 25% of points are visited twice, it is not a nice route
+            let mut ls2 = ls.0.clone();
+            ls2.dedup();
+            if ls2.len() < ls.0.len() * 0.75 as usize { continue; }
+
+            real_travel_distance = geo::algorithm::Haversine.length(
+                &mut gpx.clone().unwrap().routes.first().unwrap().linestring()
+            );
+            println!("dist is {}", real_travel_distance);
+        }
     }
 
     
