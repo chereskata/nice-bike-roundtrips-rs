@@ -10,21 +10,68 @@ use crate::graph::{Graph, NodeId};
 mod preprocessor;
 pub mod postprocessor;
 
+// TODO: define algorithm slector like enum when muliple source destination algorithms are present
+pub fn source_destination(graph: &Graph, source: &NodeId, destination: &NodeId) -> Vec<NodeId> {
+    greedy(graph, source, destination)
+}
+
+// tries to find a path to the destination node
+fn greedy(graph: &Graph, source: &NodeId, destination: &NodeId) -> Vec<NodeId> {
+    let mut route: Vec<NodeId> = Vec::new();
+    let mut current = *source;
+
+    while current != *destination {
+        route.push(current);
+
+        let currentNode = graph.nodes().get(&current).unwrap();
+        let mut closest_neighbor: Option<NodeId> = None;
+        let mut min_distance = heuristic_distance(graph, &current, destination);
+
+
+        for edge_id in currentNode.edges() {
+            let edge = graph.edges().get(edge_id).unwrap();
+            let neighbour = if *edge.s() == current {
+                *edge.t()
+            } else {
+                *edge.s()
+            };
+
+            let distance = heuristic_distance(graph, &neighbour, destination);
+            if distance < min_distance {
+                println!("min dist {:?}", distance);
+                min_distance = distance;
+                closest_neighbor = Some(neighbour);
+            }
+        }
+
+        println!("Closest neighbour {:?}", closest_neighbor);
+
+        if let Some(next) = closest_neighbor {
+            current = next;
+        } else {
+            // No valid part to the destination, hand out partial result
+            break;
+        }
+    }
+
+    route
+}
+
 /// note: the result yields only contains only starts and ends of ways (intersections)
 ///       an accurate trace has to be calculated later on
 /// note: add functionality to use ways twice only in utmost demand
-pub fn roundtrip_few_concavehull_points(graph: &Graph, visit: &mut Vec<NodeId>, start: &NodeId) -> Vec<NodeId> {
+pub fn roundtrip_few_concavehull_points(graph: &Graph, visit: &mut Vec<NodeId>, source: &NodeId) -> Vec<NodeId> {
     let mut route: Vec<NodeId> = Vec::new();
     // the route begins with the start node
-    route.push(*start);
+    route.push(*source);
     
     // note: start could be a node in the middle of a way, breaks assumption that
     // only way's s and t are included here, but a_star will handle this
     // by defaulting into one direction
-    let mut visit = preprocessor::order_with_concave_hull(graph, start, visit);
+    let mut visit = preprocessor::order_with_concave_hull(graph, source, visit);
     // the last node to visit is the start node
     // note: if is_roundtrip ...
-    visit.push(*start);
+    visit.push(*source);
 
     // add the last few nodes to a blacklist,
     // to avoid walking paths twice / backwards (if possible)
@@ -51,35 +98,34 @@ pub fn roundtrip_few_concavehull_points(graph: &Graph, visit: &mut Vec<NodeId>, 
     route
 }
 
-
 /// returns empty vector if no path exists between the two nodes
 /// note: is it really useful to return nodes? - the edges contain all location
 /// data, that has to be reconstructed later on
 fn a_star(
     graph: &Graph,
     blacklist: &HashSet<NodeId>,
-    start: &NodeId,
-    end: &NodeId
+    source: &NodeId,
+    destination: &NodeId
 ) -> Option<Vec<NodeId>> {
     // key == node, value == predecessor
     let mut came_from: HashMap<NodeId, NodeId> = HashMap::new();
 
     // least known distance from start to key
     let mut g_score: HashMap<NodeId, f64> = HashMap::new();
-    g_score.insert(*start, 0_f64);
+    g_score.insert(*source, 0_f64);
 
     // heuristic of distance from start node via=key to end node
     let mut f_score: HashMap<NodeId, f64> = HashMap::new();
-    let h = heuristic_distance(graph, start, end);
-    f_score.insert(*start, h); // start via start to end
+    let h = heuristic_distance(graph, source, destination);
+    f_score.insert(*source, h); // start via start to end
 
     let mut open_set: PriorityQueue<NodeId, Reverse<NotNan<f64>>> = PriorityQueue::new();
-    open_set.push(*start, Reverse(NotNan::new(h).unwrap()));
+    open_set.push(*source, Reverse(NotNan::new(h).unwrap()));
 
     while ! open_set.is_empty() {
         let current = open_set.pop().unwrap();
         let node_id = current.0;
-        if node_id == *end {
+        if node_id == *destination {
             // collect path from start to end
             let mut path: Vec<NodeId> = Vec::new();
             let mut current: NodeId = current.0;
@@ -118,7 +164,7 @@ fn a_star(
                 came_from.insert(neighbour_node_id, node_id);
                 g_score.insert(neighbour_node_id, tentative_g_score);
                 
-                let h = heuristic_distance(graph, &neighbour_node_id, end);
+                let h = heuristic_distance(graph, &neighbour_node_id, destination);
                 
                 let f = tentative_g_score + h; 
                 f_score.insert(neighbour_node_id, f);
@@ -131,10 +177,10 @@ fn a_star(
     None
 }
 
-fn heuristic_distance(graph: &Graph, from: &NodeId, to: &NodeId) -> f64 {
+fn heuristic_distance(graph: &Graph, source: &NodeId, destination: &NodeId) -> f64 {
     geo::Haversine.distance(
-        *graph.nodes().get(from).unwrap().point(),
-        *graph.nodes().get(to).unwrap().point()
+        *graph.nodes().get(source).unwrap().point(),
+        *graph.nodes().get(destination).unwrap().point()
     )
 }
 
@@ -218,6 +264,36 @@ mod tests {
 
         let result = a_star(&graph, &mut HashSet::new(), &2, &0);
         assert_eq!(None, result);
+    }
+
+    #[test]
+    fn greedy_no_path() {
+        // start: {1, 2}
+        // end: 0
+        //
+        // 0--->1<-->2
+
+        const DISTANCE: f64 = 1.0;
+        let mut graph_nodes: HashMap<NodeId, GraphNode> = HashMap::new();
+        graph_nodes.insert(0, GraphNode::new(0, Point::new(0.0, 0.0)));
+        graph_nodes.insert(1, GraphNode::new(1, Point::new(1.0, 0.0)));
+        graph_nodes.insert(2, GraphNode::new(2, Point::new(2.0, 0.0)));
+
+        let mut graph_edges: HashMap<EdgeId, GraphEdge> = HashMap::new();
+        graph_edges.insert(0, GraphEdge::new(0, DISTANCE, true, vec![0, 1]));
+        graph_nodes.get_mut(&0).unwrap().insert_edge(0);
+        graph_nodes.get_mut(&1).unwrap().insert_edge(0);
+        graph_edges.insert(1, GraphEdge::new(1, DISTANCE, false, vec![1, 2]));
+        graph_nodes.get_mut(&1).unwrap().insert_edge(1);
+        graph_nodes.get_mut(&2).unwrap().insert_edge(1);
+
+        let graph = Graph::new(graph_nodes, graph_edges);
+
+        let result = greedy(&graph, &1, &0);
+        assert_eq!(vec![1], result);
+
+        let result = greedy(&graph, &2, &0);
+        assert_eq!(vec![2, 1], result);
     }
 
     #[test]

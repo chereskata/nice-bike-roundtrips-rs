@@ -50,10 +50,10 @@ pub fn intersections_to_gpx(graph: &Graph, main_nodes: &Vec<NodeId>) -> Gpx {
 }
 
 
-// all points that are between from and to, sorted in correct diretion
-fn intermediary_points(graph: &Graph, from: &NodeId, to: &NodeId) -> Vec<Point> {
-    let from_edges: HashSet<EdgeId> = edges_to_hs(graph, from);
-    let to_edges: HashSet<EdgeId> = edges_to_hs(graph, to);
+// all points that are between from and to, sorted in correct direction
+fn intermediary_points(graph: &Graph, source: &NodeId, destination: &NodeId) -> Vec<Point> {
+    let from_edges: HashSet<EdgeId> = edges_to_hs(graph, source);
+    let to_edges: HashSet<EdgeId> = edges_to_hs(graph, destination);
 
     let shared_edge = from_edges
         .intersection(&to_edges)
@@ -69,8 +69,8 @@ fn intermediary_points(graph: &Graph, from: &NodeId, to: &NodeId) -> Vec<Point> 
 
     let shared_edge = graph.edges().get(&shared_edge).unwrap();
 
-    let from_index = position_in_edge(&shared_edge, &from);
-    let to_index = position_in_edge(&shared_edge, to);
+    let from_index = position_in_edge(&shared_edge, &source);
+    let to_index = position_in_edge(&shared_edge, destination);
 
     let intermediary: Vec<Point>;
     if from_index > to_index {

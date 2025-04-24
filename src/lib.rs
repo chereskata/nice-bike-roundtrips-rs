@@ -19,22 +19,23 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     
     let graph: Graph = parser::weave(&mut data);
-    let start_point = Point::new(        
-        config.start_lon.clone(),
-        config.start_lat.clone()
+    let source_point = Point::new(
+        config.source_lon.clone(),
+        config.source_lat.clone()
     );
 
     let mut gpx: Option<gpx::Gpx> = None;
 
-    if  config.dest_lon.is_some() && config.dest_lat.is_some() {
+    if  config.destination_lon.is_some() && config.destination_lat.is_some() {
         // point to point
         println!("calculating source -> destination");
 
-        let start = router::closest_point(&graph, &start_point);
-        let destination = router::closest_point(&graph, &Point::new(config.dest_lon.unwrap().clone(), config.dest_lon.unwrap()));
+        let source = router::closest_point(&graph, &source_point);
+        let destination = router::closest_point(&graph, &Point::new(config.destination_lon.unwrap().clone(), config.destination_lat.unwrap()));
 
+        let route: Vec<NodeId> = router::source_destination(&graph, &source, &destination);
 
-        todo!();
+        gpx = Some(router::postprocessor::intersections_to_gpx(&graph, &route));
     } else {
         // roundtrip
         println!("calculating roundtrip");
@@ -47,10 +48,11 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         println!("exp {:?}", expected_travel_distance);
 
         while real_travel_distance < expected_travel_distance.0 || real_travel_distance > expected_travel_distance.1 {
-            let interesting_points = parser::interesting_surrounding(&data, &start_point, &config.distance);
+            let interesting_points = parser::interesting_surrounding(&data, &source_point, &config.distance);
+            // closest points on routing graph away from the interesting locations
             let mut visit = router::nearest_graph_nodes(&graph, &interesting_points);
 
-            let start = router::closest_point(&graph, &start_point);
+            let start = router::closest_point(&graph, &source_point);
             let route: Vec<NodeId> = router::roundtrip_few_concavehull_points(&graph, &mut visit, &start);
 
             // convert the minimal spanning tree for intersections to real path traces, that resemble the real way in more detail
@@ -89,10 +91,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 #[derive(serde::Deserialize)]
 pub struct Config {
     distance: u8,
-    start_lat: f64,
-    start_lon: f64,
-    dest_lat: Option<f64>,
-    dest_lon: Option<f64>,
+    source_lat: f64,
+    source_lon: f64,
+    destination_lat: Option<f64>,
+    destination_lon: Option<f64>,
     pbf: String,
     result: String
 }
