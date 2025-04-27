@@ -2,6 +2,7 @@ use core::panic;
 use std::{error::Error, fs::File, io::{BufReader, Read}, println, path::Path};
 
 use geo::{Length, Point};
+use toml::Value::Integer;
 use graph::{Graph, NodeId};
 use parser::OsmData;
 
@@ -26,7 +27,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
     let mut gpx: Option<gpx::Gpx> = None;
 
-    if  config.destination_lon.is_some() && config.destination_lat.is_some() {
+    if config.destination_lon.is_some() && config.destination_lat.is_some() {
         // point to point
         println!("calculating source -> destination");
 
@@ -34,6 +35,12 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         let destination = router::closest_point(&graph, &Point::new(config.destination_lon.unwrap().clone(), config.destination_lat.unwrap()));
 
         let route: Vec<NodeId> = router::source_destination(&graph, &source, &destination);
+
+
+        // check if destination is reached
+        if destination != *route.last().unwrap_or(&NodeId::MIN) {
+            println!("destination and end point do not match");
+        }
 
         gpx = Some(router::postprocessor::intersections_to_gpx(&graph, &route));
     } else {
