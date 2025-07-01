@@ -1,18 +1,147 @@
 use std::{cmp::Reverse, collections::HashSet};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
-use geo::{Distance, Point};
+use geo::{Distance, Point, Line, BoundingRect, Intersects};
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
-use crate::graph::{Graph, NodeId};
+use crate::graph::{Graph, Node, NodeId};
 
 mod preprocessor;
 pub mod postprocessor;
 
 // TODO: define algorithm slector like enum when muliple source destination algorithms are present
 pub fn source_destination(graph: &Graph, source: &NodeId, destination: &NodeId) -> Vec<NodeId> {
-    greedy(graph, source, destination)
+    let mut route = face_routing(graph, source, destination);
+    if route.last() != Some(destination) {
+        if let Some(mut fallback) = a_star(graph, &HashSet::new(), route.last().unwrap_or(source), destination) {
+            // remove duplicated node
+            if !fallback.is_empty() && fallback.first() == route.last() {
+                fallback.remove(0);
+            }
+            route.extend(fallback);
+        }
+    }
+    println!("route: {:?}", route);
+
+    route
+}
+
+
+/**
+ *  collect all face walking the edges right-handed from a node
+ */
+fn collect_face(graph: &Graph, start: &NodeId) -> Vec<NodeId> {
+    use std::collections::HashSet;
+    let mut visited = HashSet::new();
+    let mut face_nodes = Vec::new();
+    let mut current = *start;
+    let mut prev = None;
+
+    visited.insert(current);
+    face_nodes.push(current);
+
+    while let Some(next) = select_next_face_node(graph, current, prev) {
+        if visited.contains(&next) {
+            break;
+        }
+        if next == *start {
+            break;
+        }
+        visited.insert(next);
+        face_nodes.push(next);
+        prev = Some(current);
+        current = next;
+    }
+
+    face_nodes
+}
+
+
+fn select_next_face_node(graph: &Graph, current: NodeId, prev: Option<NodeId>) -> Option<NodeId> {
+    let current_point = graph.nodes().get(&current)?.point();
+    let prev_point = match prev {
+        Some(id) => graph.nodes().get(&id)?.point(),
+        None => current_point
+    };
+    let incoming_vec = (current_point.x() - prev_point.x(), current_point.y() - prev_point.y());
+
+    let node_obj = graph.nodes().get(&current)?;
+    let mut best_node = None;
+    let mut best_angle = 360.0_f64;
+
+    for edge_id in node_obj.edges() {
+        let edge = graph.edges().get(edge_id)?;
+        let neighbor = if *edge.s() == current { *edge.t() } else { *edge.s() };
+        if Some(neighbor) == prev {
+            continue;
+        }
+        let np = graph.nodes().get(&neighbor)?.point();
+        let edge_vec = (np.x() - current_point.x(), np.y() - current_point.y());
+        let angle = clockwise_angle(incoming_vec, edge_vec);
+
+        if angle < best_angle {
+            best_angle = angle;
+            best_node = Some(neighbor);
+        }
+    }
+
+    println!("best node returned: {:?}", best_node);
+
+    best_node
+}
+
+fn clockwise_angle(a: (f64, f64), b: (f64, f64)) -> f64 {
+    let crossP = a.0 * b.1 - a.1 * b.0;
+    let dotP = a.0 * b.0 + a.1 * b.1;
+    let mut angle = crossP.atan2(dotP).to_degrees();
+
+    if angle < 0.0 {
+        angle += 360.0;
+    }
+    angle
+}
+
+fn face_routing(graph: &Graph, source: &NodeId, destination: &NodeId) -> Vec<NodeId> {
+    let mut route: Vec<NodeId> = Vec::new();
+    let mut visited_nodes = HashSet::new();
+    let mut current = *source;
+    let st_line = Line::new(
+        *graph.nodes().get(source).unwrap().point(),
+        *graph.nodes().get(destination).unwrap().point()
+    );
+    let start_time = Instant::now();
+    let time_limit = Duration::from_secs(5 * 60);
+
+    while current != *destination && start_time.elapsed() < time_limit {
+        if !visited_nodes.insert(current) {
+            // Return partial route if stuck
+            return route;
+        }
+        let face_nodes = collect_face(graph, &current);
+        for (i, node_id) in face_nodes.iter().enumerate() {
+            route.push(*node_id);
+            if *node_id == *destination {
+                return route;
+            }
+            if i + 1 < face_nodes.len() {
+                let next_node = face_nodes[i + 1];
+                let seg = Line::new(
+                    *graph.nodes().get(node_id).unwrap().point(),
+                    *graph.nodes().get(&next_node).unwrap().point()
+                );
+                if seg.intersects(&st_line) {
+                    current = next_node;
+                    break;
+                }
+            }
+            if i == face_nodes.len() - 1 {
+                current = *node_id;
+            }
+        }
+    }
+    route
 }
 
 // tries to find a path to the destination node

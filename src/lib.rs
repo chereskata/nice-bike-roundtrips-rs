@@ -36,7 +36,6 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
         let route: Vec<NodeId> = router::source_destination(&graph, &source, &destination);
 
-
         // check if destination is reached
         if destination != *route.last().unwrap_or(&NodeId::MIN) {
             println!("destination and end point do not match");
