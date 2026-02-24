@@ -13,7 +13,7 @@ pub fn interesting_surrounding(
     travel_distance: &u8
 ) -> Vec<Point> {
     let radius = assumed_radius(travel_distance);
-    
+
     let mut points: Vec<Point> = Vec::new();
 
     points.append(&mut data.nodes
@@ -42,15 +42,16 @@ pub fn interesting_surrounding(
             distance < radius
         })
         .collect();
-    
+
 
     // to always get a different route, use only 20 random intersting points
-    use rand::thread_rng;
+    use rand::rng;
     use rand::seq::SliceRandom;
-    points.shuffle(&mut thread_rng());
+    let mut random = rng();
+    points.shuffle(&mut random);
     // println!("points: {}", points.len());
     points.truncate(4 + ((radius * 0.0005) as usize));
-    
+
     points
 }
 
@@ -90,7 +91,7 @@ fn interesting_node(node: &OsmNode) -> Option<Point> {
             }
         }
     }
-    
+
     None
 }
 
@@ -138,7 +139,7 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
                     let poly = to_polygon(data, way);
                     return Some(center(&poly));
                 }
-                _ => (),                
+                _ => (),
             }
         }
         if k == "historic" {
@@ -156,7 +157,7 @@ fn interesting_way(data: &OsmData, way: &OsmWay) -> Option<Point> {
             }
         }
     }
-    
+
     None
 }
 
@@ -173,7 +174,7 @@ fn interesting_relation(data: &OsmData, relation: &OsmRelation) -> Option<Point>
         let k = tag.0.as_str();
         let v = tag.1.as_str();
 
-              
+
         if k == "natural" {
             match v {
                 "water" | "grassland" | "heath" | "wood" | "bay" |
@@ -209,7 +210,7 @@ fn relation_to_point(data: &OsmData, relation: &OsmRelation) -> Option<Point> {
 
             let way_id = a_ref.member.way().unwrap().0.unsigned_abs();
             let way = data.ways.get(&way_id).unwrap();
-            
+
             let poly = to_polygon(data, &way);
             let area = area(&poly);
             if area > 100.0 { center(&poly); }
@@ -218,9 +219,10 @@ fn relation_to_point(data: &OsmData, relation: &OsmRelation) -> Option<Point> {
         })
         .collect();
 
-    use rand::thread_rng;
+    use rand::rng;
     use rand::seq::SliceRandom;
-    all_outer_centers.shuffle(&mut thread_rng());
+    let mut random = rng();
+    all_outer_centers.shuffle(&mut random);
 
     all_outer_centers.pop()
 }
@@ -234,12 +236,12 @@ fn to_polygon(data: &OsmData, way: &OsmWay) -> Polygon {
             into_point(&node).0
         })
         .collect();
-    
+
     Polygon::new(geo::LineString::new(coords), vec![])
 }
 
 // area in qm
-fn area(poly: &Polygon) -> f64 {    
+fn area(poly: &Polygon) -> f64 {
     geo::algorithm::ChamberlainDuquetteArea::chamberlain_duquette_unsigned_area(poly)
 }
 
@@ -248,7 +250,7 @@ fn center(poly: &Polygon) -> Point {
     geo::algorithm::Centroid::centroid(poly).unwrap()
 }
 
-// return radius in meters - distance is kms 
+// return radius in meters - distance is kms
 fn assumed_radius(travel_distance: &u8) -> f64 {
     *travel_distance as f64 * 1000.0 / 6.28
 }
@@ -281,8 +283,8 @@ mod tests {
 
     //     for id in &real {
     //         assert!(result.contains(&id));
-    //     }        
-        
+    //     }
+
     //     assert_eq!(result.len(), real.len());
     // }
 

@@ -35,7 +35,7 @@ pub fn intersections_to_gpx(graph: &Graph, main_nodes: &Vec<NodeId>) -> Gpx {
         source: None,
         links: Vec::new(),
         number: None,
-        _type: None,
+        type_: None,
         points: waypoints
     };
     

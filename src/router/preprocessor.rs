@@ -1,14 +1,15 @@
 use geo::ConcaveHull;
 use geo::LineString;
 use geo::Point;
+use geo::concave_hull::ConcaveHullOptions;
 
 use crate::graph::{Graph, NodeId};
 
 /// orders interesting nodes based on their location in a concave hull
 /// note: the inner nodes of a the hull are not used yet
-pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<NodeId>) -> Vec<NodeId> {   
+pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<NodeId>) -> Vec<NodeId> {
     let mut points_with_ids: Vec<GraphPoint> = Vec::new();
-    
+
     let mut points: Vec<Point> = Vec::new();
 
     for node_id in visit {
@@ -21,7 +22,9 @@ pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<No
 
     // note: concavity factor could be radius dependend
     // note: concave hull is not sorted
-    let hull = ls.concave_hull(3.0);
+    let hull = ls.concave_hull_with_options(
+        ConcaveHullOptions::default().concavity(3.0)
+    );
     // let hull = geo::algorithm::ConvexHull::convex_hull(&ls);
 
     let mut ring: Vec<Point> = hull.exterior().points().collect();
@@ -30,8 +33,8 @@ pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<No
     // note: nodes inside the hull are discarded for now
     // let mut inner: Vec<Point> = ls.points().filter(|p| ! ring.contains(p)).collect();
     // inner.dedup();
-     
-    
+
+
     // let start_point = graph.nodes().get(start).unwrap().point();
     // let bearing_first = geo::HaversineBearing::haversine_bearing(start_point, *ring.first().unwrap());
     // let bearing_last = geo::HaversineBearing::haversine_bearing(start_point, *ring.last().unwrap());
@@ -54,7 +57,7 @@ pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<No
     //         quadrant_last = quadrant_last.neighbour_ccw();
     //     }
     // }
- 
+
     // // smallest distance point from start is always first (nearest from start of route)
     // let mut before_first: PriorityQueue<NodeId, Reverse<NotNan<f64>>> = PriorityQueue::new();
     // // largest distance point from start is always first (nearest to end of ring)
@@ -63,25 +66,25 @@ pub fn order_with_concave_hull(graph: &Graph, start: &NodeId, visit: &mut Vec<No
     // for point in inner {
     //     let bearing = geo::HaversineBearing::haversine_bearing(start_point, point);
     //     let quadrant = Quadrant::to_quadrant(&bearing.to_degrees());
-        
+
     //     if quadrant == quadrant_first || quadrant == quadrant_last {
     //         // get node ids
-    //         let node_id = back_to_id(&points_with_ids, &point);           
+    //         let node_id = back_to_id(&points_with_ids, &point);
     //         let distance = geo::algorithm::HaversineDistance::haversine_distance(start_point, &point);
 
     //         if quadrant == quadrant_first {
-    //             before_first.push(node_id, Reverse(NotNan::new(distance).unwrap()));  
+    //             before_first.push(node_id, Reverse(NotNan::new(distance).unwrap()));
     //         } else  {
     //             after_last.push(node_id, NotNan::new(distance).unwrap());
     //         }
     //     }
-    // }  
+    // }
 
     let mut result: Vec<NodeId> = Vec::new();
     // result.append(&mut before_first.into_sorted_vec());
     result.append(&mut ring.iter().map(|p| back_to_id(&points_with_ids, p)).collect());
     // result.append(&mut after_last.into_sorted_vec());
-     
+
     result
 }
 
@@ -92,7 +95,7 @@ struct GraphPoint {
     point: Point,
     id: NodeId
 }
- 
+
 fn back_to_id(v: &Vec<GraphPoint>, point: &Point) -> NodeId {
     v.iter().fold(None, |s, gp| {
         match s {
